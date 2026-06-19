@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mon deuxième cerveau</title>
+
+  <!--
+    ============================================================
+      BIENVENUE !
+    ============================================================
+    Ce fichier est une petite application de prise de notes.
+    Tu n'as RIEN à installer : tu double-cliques sur ce fichier
+    et il s'ouvre dans ton navigateur (Chrome, Firefox...).
+
+    Un fichier comme celui-ci contient 3 langages :
+      1) HTML  = le SQUELETTE (les boutons, les zones de texte)
+      2) CSS   = la DÉCO     (les couleurs, les tailles)
+      3) JS    = le CERVEAU  (ce qui se passe quand tu cliques)
+
+    Tout est commenté. Un commentaire, c'est du texte que
+    l'ordinateur IGNORE : c'est écrit pour TOI, pas pour lui.
+      - En HTML, un commentaire ressemble à ces lignes-ci.
+      - En CSS et JS, un commentaire commence par  //  ou  /* */
+
+    Tu n'as PAS besoin de tout comprendre tout de suite.
+    Suis le CARNET DE BORD (l'autre fichier), il te dit
+    quoi faire étape par étape.
+    ============================================================
+  -->
+
+  <style>
+    /* ---------- CSS : la déco. Tu pourras jouer avec plus tard ---------- */
+
+    /* "body" = toute la page. Ici on choisit la police et un fond clair. */
+    body {
+      font-family: Arial, sans-serif;   /* la police d'écriture */
+      background: #f4f1ea;               /* couleur de fond (un beige doux) */
+      color: #2c2c2a;                    /* couleur du texte */
+      max-width: 800px;                  /* la page ne s'étale pas trop large */
+      margin: 40px auto;                 /* centre la page horizontalement */
+      padding: 0 20px;
+      line-height: 1.6;
+    }
+
+    h1 { font-size: 26px; }
+
+    /* La zone pour écrire une nouvelle note */
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 15px;
+      box-sizing: border-box;   /* évite que ça déborde */
+      position: relative;
+      z-index: 100;  /* Au-dessus des notes */
+    }
+
+    /* Le bouton "Ajouter" */
+    button {
+      padding: 10px 18px;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      background: blue;   /* vert */
+      color: white;
+      cursor: pointer;       /* la souris devient une main au survol */
+      position: relative;
+      z-index: 100;  /* Au-dessus des notes */
+    }
+    button:hover { background: #1310d5; }  /* vert plus foncé au survol */
+
+    .button-action {
+      padding: 8px 10px;
+      font-size: 14px;
+      border-radius: 8px;
+      color: white;
+      border: none;
+      cursor: pointer;
+      width: 38px;
+      position: relative;
+      z-index: 100;  /* Au-dessus des notes */
+    }
+    .button-edit { background: #1041e3; }
+    .button-edit:hover { background: #1d3fb8; }
+    .button-delete { background: #cc0000; }
+    .button-delete:hover { background: #990000; }
+
+    /* Une note affichée - positionnement ABSOLU dans la zone de notes */
+    .note {
+      position: absolute;
+      background: white;
+      border: 1px solid #e0ddd5;
+      border-radius: 8px;
+      padding: 12px 16px 12px 24px;
+      cursor: move;  /* la souris devient une main pour indiquer qu'on peut déplacer */
+      min-width: 200px;
+      max-width: 400px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);  /* légère ombre */
+      z-index: 10;  /* Au-dessus du fond mais au-dessous des inputs/boutons */
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+    .note, .note * {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      -webkit-user-drag: none;
+      -webkit-touch-callout: none;
+    }
+    .note.dragging {
+      opacity: 0.85;  /* semi-transparent quand on traîne */
+      border: 2px solid #999;  /* bordure épaisse */
+      z-index: 1000;  /* au-dessus de tout pendant le drag */
+      cursor: grabbing;
+    }
+    .note-content { min-width: 0; }
+    .note-actions {
+      position: absolute;
+      left: -48px;
+      top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .note h3 { margin: 0 0 6px 0; font-size: 17px; word-break: break-word; }
+    .note p  { margin: 0; white-space: pre-wrap; }
+
+    /* Note réduite */
+    .note.reduit {
+      padding: 6px 10px;
+      cursor: move;
+      max-width: none;
+      min-width: auto;
+      display: inline-block;
+    }
+    .note.reduit .note-content p {
+      display: none;
+    }
+    .note.reduit .note-content h3 {
+      margin: 0;
+      font-size: 13px;
+    }
+    .note.reduit .note-actions {
+      display: none;
+    }
+
+    .note.reduit .note-actions {
+      display: none;
+    }
+
+    /* Zone de drop pour les notes (invisible mais présente en arrière-plan) */
+    #zoneDeplacement {
+      position: fixed;
+      left: 0;
+      right: 0;
+      width: 100vw;
+      top: 350px;
+      bottom: 0;
+      padding: 12px;
+      border-top: none; /* rendre invisible */
+      background: transparent; /* garder en arrière-plan mais invisible */
+      box-sizing: border-box;
+      overflow: hidden;
+      z-index: 0;
+    }
+    #listeDesNotes {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Ligne limite affichée pendant le drag : indique la limite de dépôt */
+    #zoneLimite {
+      position: fixed; /* fixed to guarantee visibility above notes */
+      left: 0;
+      top: 0;
+      width: 0; /* width controlled during drag */
+      height: 4px;
+      background: rgba(0,0,0,1);
+      display: none;
+      opacity: 0;
+      transition: opacity 180ms ease;
+      z-index: 99999; /* très au-dessus des notes pendant le drag */
+      pointer-events: none;
+      border-radius: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      will-change: opacity, left, width, top;
+    }
+    #zoneDeplacement.zone-drop-active {
+      background: rgba(210, 235, 255, 0.85);
+      border-color: #3b76d8;
+    }
+
+    /* Calque des traits qui relient les notes (sous les notes) */
+    #liensSvg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;  /* les clics passent à travers, vers les notes */
+      overflow: visible;
+      z-index: 1;            /* au-dessus du fond, sous les notes (z-index 10) */
+    }
+    /* En mode "Relier", le curseur indique qu'on va sélectionner des notes */
+    body.mode-relier .note { cursor: crosshair; }
+    /* En mode "Supprimer liens", les notes ne se déplacent pas */
+    body.mode-supprimer-liens .note { cursor: default; }
+    /* La première note choisie pour un lien est mise en évidence */
+    .note.note-selection-lien { outline: 3px solid #9b59b6; outline-offset: 2px; }
+  </style>
+</head>
+
+<body>
+
+  <!-- ---------- HTML : le squelette de la page ---------- -->
+
+  <h1>Mon stage de seconde
+
+  </h1>
+  <p>Écris une idée par note. Garde-les courtes !</p>
+  <p id="compteurNotes">Notes : 0</p>
+  <!-- La zone pour écrire une nouvelle note -->
+  <!--
+    Chaque "id" est une ÉTIQUETTE. Elle sert au cerveau (le JS)
+    plus bas pour retrouver l'élément et lire ce qu'on a tapé.
+  -->
+  <input    type="text" id="champTitre"   placeholder="Titre de l'idée (ex : Le Zettelkasten)">
+  <textarea            id="champContenu" placeholder="Explique l'idée avec TES mots..." rows="3"></textarea>
+
+  <!--
+    Quand on clique sur ce bouton, on lance la fonction "ajouterNote".
+    Une "fonction" = une recette de cuisine : une liste d'actions
+    qui se déclenchent quand on l'appelle.
+  -->
+  <button onclick="ajouterNote()">Ajouter la note</button>
+
+  <!-- Boutons pour gérer les fichiers -->
+    <div id="zoneBoutons" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ccc; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+    <button onclick="chargerNotes()" style="background: #ff9900;">📤 Charger des notes</button>
+    <button id="telechargerUneFois" onclick="telechargerNotes()" style="background: #0066cc;">Télécharger</button>
+    <button id="boutonRelier" onclick="basculerModeRelier()" style="background: #6b3fa0;">🔗 Relier</button>
+    <button id="boutonSupprimerLiens" onclick="basculerModeSupprimerLiens(event)" style="background: #888;">🗑️ Supprimer liens</button>
+    <span id="spinner" style="display: none;" class="spinner" aria-hidden="true"></span>
+    <input type="file" id="fichierNotes" accept=".json" style="display: none;">
+  </div>
+
+  <!-- Zone rectangulaire qui va du bas de la page jusqu'au dessous des boutons -->
+  <div id="zoneDeplacement">
+    <div id="listeDesNotes"></div>
+    <div id="zoneLimite" aria-hidden="true"></div>
+  </div>
+
+
+  <!-- ---------- JS : le cerveau. C'est lui qui fait tout marcher ---------- -->
+  <script>
+
+    const CLE_STOCKAGE = "mon-deuxieme-cerveau-notes";
+
+    // Une VARIABLE, c'est une boîte avec une étiquette dans laquelle
+    // on range quelque chose. Ici, une boîte qui contiendra TOUTES
+    // nos notes. Au départ elle est vide : [] veut dire "liste vide".
+    let mesNotes = [];
+    let indexEnEdition = null;
+    let indexEnCoursDeDeplacement = null;
+    let notesReduites = {};
+    let positionsNotes = {};  // Stocke les positions x, y de chaque note
+    let zIndexPremierPlan = 10;  // profondeur courante : augmente quand une note passe au premier plan
+    let liens = [];                 // Liste des traits : chaque lien = { a: index, b: index }
+    let modeRelier = false;         // true quand le bouton "Relier" est actif
+    let premiereNotePourLien = null;// 1re note cliquée en attente de la 2e
+    let modeSupprimerLiens = false; // true quand le bouton "Supprimer des liens" est actif
+    let liensSelectionnes = [];     // clés "min-max" des traits cochés pour suppression
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    // Clé unique d'un lien, indépendante de l'ordre des deux notes
+    function cleLien(l) { return Math.min(l.a, l.b) + '-' + Math.max(l.a, l.b); }
+    // auto-download is handled by a periodic timer (every 10 minutes)
+    let noteEnDeplacement = null;
+    let dragMoved = false;
+    let dragStartX = 0;  // Position initiale du drag
+    let dragStartY = 0;
+    let tailOffset = 20; // pixels à ajouter à la largeur de la ligne (queue)
+
+    function escapeHtml(texte) {
+      return texte
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // On charge automatiquement les notes sauvegardées au démarrage
+    function chargerNotesDepuisStockage() {
+      let notesSauvegardees = localStorage.getItem(CLE_STOCKAGE);
+      if (notesSauvegardees) {
+        try {
+          mesNotes = JSON.parse(notesSauvegardees);
+        } catch (e) {
+          mesNotes = [];
+        }
+      }
+      // Charger les positions aussi (mais on recentre au démarrage)
+      let positionsSauvegardees = localStorage.getItem(CLE_STOCKAGE + "-positions");
+      if (positionsSauvegardees) {
+        try {
+          positionsNotes = JSON.parse(positionsSauvegardees);
+        } catch (e) {
+          positionsNotes = {};
+        }
+      }
+      // Charger les liens entre notes
+      let liensSauvegardes = localStorage.getItem(CLE_STOCKAGE + "-liens");
+      if (liensSauvegardes) {
+        try {
+          liens = JSON.parse(liensSauvegardes);
+        } catch (e) {
+          liens = [];
+        }
+      }
+      // Charger l'état "réduit" de chaque note
+      let reduitesSauvegardees = localStorage.getItem(CLE_STOCKAGE + "-reduites");
+      if (reduitesSauvegardees) {
+        try {
+          notesReduites = JSON.parse(reduitesSauvegardees);
+        } catch (e) {
+          notesReduites = {};
+        }
+      }
+    }
+
+    function recentrerNotesAuCentre(force = false) {
+      if (!force && Object.keys(positionsNotes).length > 0) {
+        return;
+      }
+      let baseX = Math.max(0, Math.round(window.innerWidth / 2 - 220));
+      let baseY = Math.max(20, Math.round(window.innerHeight / 2 - 80));
+      let zoneDeplacement = document.getElementById('zoneDeplacement');
+      if (zoneDeplacement) {
+        let rect = zoneDeplacement.getBoundingClientRect();
+        baseX = Math.max(0, Math.round(rect.width / 2 - 220));
+        baseY = Math.max(10, Math.round(rect.height / 2 - 80));
+      }
+      positionsNotes = {};
+      for (let i = 0; i < mesNotes.length; i++) {
+        positionsNotes[i] = {
+          x: baseX,
+          y: Math.min(Math.max(baseY + i * 110, 0), (zoneDeplacement ? zoneDeplacement.getBoundingClientRect().height - 100 : window.innerHeight - 100))
+        };
+      }
+    }
+
+    function obtenirPositionPile() {
+      let indexSource = mesNotes.findIndex(function(note) {
+        return note.titre && note.titre.trim().toLowerCase() === 'sélection du cuir';
+      });
+      if (indexSource !== -1 && positionsNotes[indexSource]) {
+        return {
+          x: positionsNotes[indexSource].x,
+          y: positionsNotes[indexSource].y
+        };
+      }
+      let zoneDeplacement = document.getElementById('zoneDeplacement');
+      if (zoneDeplacement) {
+        let rect = zoneDeplacement.getBoundingClientRect();
+        return {
+          x: Math.max(0, Math.round(rect.width / 2 - 220)),
+          y: Math.max(10, Math.round(rect.height / 2 - 80))
+        };
+      }
+      return { x: 20, y: 20 };
+    }
+
+    function positionnerToutesLesNotesSurLaNoteTitre(titreRecherche) {
+      let indexSource = mesNotes.findIndex(function(note) {
+        return note.titre && note.titre.trim().toLowerCase() === titreRecherche.trim().toLowerCase();
+      });
+      let sourcePosition = { x: 20, y: 20 };
+      if (indexSource !== -1 && positionsNotes[indexSource]) {
+        sourcePosition = positionsNotes[indexSource];
+      } else if (indexSource === -1) {
+        sourcePosition = obtenirPositionPile();
+      }
+      for (let i = 0; i < mesNotes.length; i++) {
+        positionsNotes[i] = { x: sourcePosition.x, y: sourcePosition.y };
+      }
+    }
+
+    function sauvegarderNotesEnStockage() {
+      localStorage.setItem(CLE_STOCKAGE, JSON.stringify(mesNotes));
+      localStorage.setItem(CLE_STOCKAGE + "-positions", JSON.stringify(positionsNotes));
+      localStorage.setItem(CLE_STOCKAGE + "-liens", JSON.stringify(liens));
+      localStorage.setItem(CLE_STOCKAGE + "-reduites", JSON.stringify(notesReduites));
+    }
+
+    // Donne à la note "index" la profondeur la plus élevée pour qu'elle
+    // s'affiche AU-DESSUS des autres notes une fois déposée.
+    function amenerNoteAuPremierPlan(index) {
+      zIndexPremierPlan++;
+      // On garde les notes sous les champs et les boutons (z-index 100).
+      // Si on s'en approche, on remet les profondeurs à plat en gardant l'ordre.
+      if (zIndexPremierPlan >= 99) {
+        let cles = Object.keys(positionsNotes).filter(function(k) { return positionsNotes[k]; });
+        cles.sort(function(a, b) {
+          return ((positionsNotes[a] && positionsNotes[a].z) || 10) - ((positionsNotes[b] && positionsNotes[b].z) || 10);
+        });
+        let z = 11;
+        cles.forEach(function(k) { positionsNotes[k].z = z; z++; });
+        zIndexPremierPlan = z;
+      }
+      if (!positionsNotes[index]) positionsNotes[index] = { x: 0, y: 0 };
+      positionsNotes[index].z = zIndexPremierPlan;
+    }
+
+    // ----- RELIER LES NOTES -----
+    // Active / désactive le mode "Relier" (déclenché par le bouton 🔗).
+    function basculerModeRelier() {
+      modeRelier = !modeRelier;
+      premiereNotePourLien = null;
+      // Les deux modes (Relier / Supprimer liens) ne coexistent pas
+      if (modeRelier && modeSupprimerLiens) quitterModeSupprimerLiens();
+      document.body.classList.toggle('mode-relier', modeRelier);
+      let bouton = document.getElementById('boutonRelier');
+      if (bouton) {
+        bouton.textContent = modeRelier ? '🔗 Clique 2 notes…' : '🔗 Relier';
+        bouton.style.background = modeRelier ? '#9b59b6' : '#6b3fa0';
+      }
+      // Enlever toute surbrillance de sélection restante
+      document.querySelectorAll('.note.note-selection-lien').forEach(function(n) {
+        n.classList.remove('note-selection-lien');
+      });
+    }
+
+    // Appelée quand on clique sur une note PENDANT le mode "Relier".
+    function selectionnerPourLien(index) {
+      let zone = document.getElementById('listeDesNotes');
+      let el = zone ? zone.querySelector('.note[data-index="' + index + '"]') : null;
+      if (premiereNotePourLien === null) {
+        // 1er clic : on mémorise et on surligne
+        premiereNotePourLien = index;
+        if (el) el.classList.add('note-selection-lien');
+      } else if (premiereNotePourLien === index) {
+        // re-clic sur la même note : on annule la sélection
+        if (el) el.classList.remove('note-selection-lien');
+        premiereNotePourLien = null;
+      } else {
+        // 2e clic sur une autre note : on crée le trait (sans doublon)
+        let a = premiereNotePourLien, b = index;
+        let existeDeja = liens.some(function(l) {
+          return (l.a === a && l.b === b) || (l.a === b && l.b === a);
+        });
+        if (!existeDeja) liens.push({ a: a, b: b });
+        premiereNotePourLien = null;
+        sauvegarderNotesEnStockage();
+        // On RESTE en mode "Relier" pour enchaîner d'autres traits.
+        // (On sort du mode en recliquant sur le bouton 🔗 Relier.)
+        afficherLesNotes();     // redessine notes + traits (et enlève la surbrillance)
+      }
+    }
+
+    // ----- SUPPRIMER PLUSIEURS LIENS D'UN COUP -----
+    // 1er clic sur le bouton : on entre en mode sélection.
+    // On clique alors sur les traits à supprimer (ils se cochent en rouge).
+    // 2e clic sur le bouton : on supprime tous les traits sélectionnés.
+    // Un clic ailleurs sur la page annule tout et désactive le bouton.
+    function basculerModeSupprimerLiens(event) {
+      if (event) event.stopPropagation();  // ne pas déclencher l'annulation "clic ailleurs"
+      if (modeSupprimerLiens) {
+        // 2e clic : on supprime les liens cochés
+        if (liensSelectionnes.length > 0) {
+          liens = liens.filter(function(l) {
+            return liensSelectionnes.indexOf(cleLien(l)) === -1;
+          });
+          sauvegarderNotesEnStockage();
+        }
+        quitterModeSupprimerLiens();
+        afficherLesNotes();
+      } else {
+        // activation du mode
+        if (modeRelier) basculerModeRelier();  // on ne cumule pas les deux modes
+        modeSupprimerLiens = true;
+        liensSelectionnes = [];
+        document.body.classList.add('mode-supprimer-liens');
+        majBoutonSupprimerLiens();
+        dessinerLiens();
+      }
+    }
+
+    function quitterModeSupprimerLiens() {
+      modeSupprimerLiens = false;
+      liensSelectionnes = [];
+      document.body.classList.remove('mode-supprimer-liens');
+      majBoutonSupprimerLiens();
+    }
+
+    function majBoutonSupprimerLiens() {
+      let b = document.getElementById('boutonSupprimerLiens');
+      if (!b) return;
+      if (modeSupprimerLiens) {
+        let n = liensSelectionnes.length;
+        b.textContent = n === 0
+          ? '🗑️ Clique des liens…'
+          : '🗑️ Supprimer ' + n + ' lien' + (n > 1 ? 's' : '');
+        b.style.background = '#cc0000';
+      } else {
+        b.textContent = '🗑️ Supprimer liens';
+        b.style.background = '#888';
+      }
+    }
+
+    // Dessine tous les traits reliant les notes, du centre de l'une au centre de l'autre.
+    function dessinerLiens() {
+      let zone = document.getElementById('listeDesNotes');
+      if (!zone) return;
+      let svg = document.getElementById('liensSvg');
+      if (!svg) {
+        svg = document.createElementNS(SVG_NS, 'svg');
+        svg.setAttribute('id', 'liensSvg');
+        zone.appendChild(svg);
+      }
+      svg.setAttribute('width', zone.clientWidth);
+      svg.setAttribute('height', zone.clientHeight);
+      // On vide le calque avant de tout redessiner
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      liens.forEach(function(lien) {
+        let a = zone.querySelector('.note[data-index="' + lien.a + '"]');
+        let b = zone.querySelector('.note[data-index="' + lien.b + '"]');
+        if (!a || !b) return;  // une des notes n'existe plus
+        // Centre du rectangle = coin + moitié de la taille (vaut aussi en mode réduit)
+        let ax = a.offsetLeft + a.offsetWidth / 2;
+        let ay = a.offsetTop + a.offsetHeight / 2;
+        let bx = b.offsetLeft + b.offsetWidth / 2;
+        let by = b.offsetTop + b.offsetHeight / 2;
+
+        // Un groupe par trait : une ligne large invisible (zone de clic facile)
+        // + la ligne visible. On peut cliquer dessus pour supprimer le trait.
+        let groupe = document.createElementNS(SVG_NS, 'g');
+
+        let zoneClic = document.createElementNS(SVG_NS, 'line');
+        zoneClic.setAttribute('x1', ax); zoneClic.setAttribute('y1', ay);
+        zoneClic.setAttribute('x2', bx); zoneClic.setAttribute('y2', by);
+        zoneClic.setAttribute('stroke', 'transparent');
+        zoneClic.setAttribute('stroke-width', '16');
+        zoneClic.style.pointerEvents = 'stroke';  // seul le trait capte les clics
+        zoneClic.style.cursor = 'pointer';
+
+        // Un trait coché pour suppression (mode "Supprimer liens") est rouge et épais
+        let estCoche = modeSupprimerLiens && liensSelectionnes.indexOf(cleLien(lien)) !== -1;
+        let trait = document.createElementNS(SVG_NS, 'line');
+        trait.setAttribute('x1', ax); trait.setAttribute('y1', ay);
+        trait.setAttribute('x2', bx); trait.setAttribute('y2', by);
+        trait.setAttribute('stroke', estCoche ? '#cc0000' : '#555');
+        trait.setAttribute('stroke-width', estCoche ? '4' : '2');
+        trait.style.pointerEvents = 'none';
+
+        // Survol : le trait devient rouge pour montrer qu'on peut le sélectionner/supprimer
+        groupe.addEventListener('mouseenter', function() {
+          trait.setAttribute('stroke', '#cc0000');
+          trait.setAttribute('stroke-width', estCoche ? '4' : '3');
+        });
+        groupe.addEventListener('mouseleave', function() {
+          // On rétablit la couleur selon que le trait est coché ou non
+          let coche = modeSupprimerLiens && liensSelectionnes.indexOf(cleLien(lien)) !== -1;
+          trait.setAttribute('stroke', coche ? '#cc0000' : '#555');
+          trait.setAttribute('stroke-width', coche ? '4' : '2');
+        });
+        // Clic sur un trait
+        groupe.addEventListener('click', function(event) {
+          event.stopPropagation();  // ne pas déclencher l'annulation "clic ailleurs"
+          if (modeSupprimerLiens) {
+            // En mode "Supprimer liens" : on coche / décoche ce trait
+            let cle = cleLien(lien);
+            let pos = liensSelectionnes.indexOf(cle);
+            if (pos === -1) liensSelectionnes.push(cle);
+            else liensSelectionnes.splice(pos, 1);
+            majBoutonSupprimerLiens();
+            dessinerLiens();
+            return;
+          }
+          // Mode normal : suppression d'un seul trait avec confirmation
+          if (confirm('Supprimer ce trait ?')) {
+            liens = liens.filter(function(l) {
+              return !((l.a === lien.a && l.b === lien.b) || (l.a === lien.b && l.b === lien.a));
+            });
+            sauvegarderNotesEnStockage();
+            afficherLesNotes();
+          }
+        });
+
+        groupe.appendChild(zoneClic);
+        groupe.appendChild(trait);
+        svg.appendChild(groupe);
+      });
+    }
+
+    chargerNotesDepuisStockage();
+    // On NE recentre plus les notes à chaque ouverture : elles gardent
+    // la position où on les a laissées. On ne place au centre que si
+    // aucune position n'a encore été enregistrée (toute 1re ouverture).
+    recentrerNotesAuCentre(false);
+    afficherLesNotes();
+    ajusterHauteurZoneDeplacement();
+    // Démarrer l'auto-téléchargement toutes les 10 minutes (600000 ms)
+    var autoDownloadInterval = setInterval(function() { telechargerNotes(); }, 10 * 60 * 1000);
+
+    function ajusterHauteurZoneDeplacement() {
+      let zoneDeplacement = document.getElementById('zoneDeplacement');
+      let zoneBoutons = document.getElementById('zoneBoutons');
+      if (!zoneDeplacement || !zoneBoutons) return;
+      let rect = zoneBoutons.getBoundingClientRect();
+      zoneDeplacement.style.top = Math.round(rect.bottom + 10) + 'px';
+    }
+    window.addEventListener('resize', ajusterHauteurZoneDeplacement);
+    window.addEventListener('resize', dessinerLiens);
+    setTimeout(ajusterHauteurZoneDeplacement, 100);
+
+    // ----- LA RECETTE "ajouterNote" -----
+    // Elle se déclenche quand on clique sur le bouton.
+    function ajouterNote() {
+
+      // 1) On va CHERCHER ce que l'utilisateur a tapé.
+      //    On retrouve les champs grâce à leur étiquette (id),
+      //    et ".value" veut dire "le texte qui est dedans".
+      let titre   = document.getElementById("champTitre").value;
+      let contenu = document.getElementById("champContenu").value;
+
+      // 2) Si le titre est vide, on arrête là (on ne crée pas de note vide).
+      if (titre === "") {
+        alert("Donne au moins un titre à ton idée !");
+        return;   // "return" = on sort de la recette tout de suite
+      }
+
+      // 3) On range la nouvelle note dans notre boîte "mesNotes".
+      //    Une note est un petit paquet avec un titre et un contenu.
+      mesNotes.push({ titre: titre, contenu: contenu });
+      positionsNotes[mesNotes.length - 1] = obtenirPositionPile();
+
+      // 4) On sauvegarde immédiatement en localStorage
+      sauvegarderNotesEnStockage();
+
+      // 5) On vide les champs pour pouvoir écrire la note suivante.
+      document.getElementById("champTitre").value   = "";
+      document.getElementById("champContenu").value = "";
+
+      // 6) On redessine la liste à l'écran (recette juste en dessous).
+      afficherLesNotes();
+
+      // 7) (Le téléchargement périodique a été déplacé vers un timer toutes les 10 minutes)
+    }
+
+
+    // ----- LA RECETTE "afficherLesNotes" -----
+    // Elle redessine TOUTE la liste de notes à l'écran.
+    function afficherLesNotes() {
+
+      // On retrouve la zone d'affichage (la div vide tout en haut).
+      let zone = document.getElementById("listeDesNotes");
+
+      // On la vide complètement avant de tout redessiner proprement.
+      zone.innerHTML = "";
+
+      // Mettre à jour le compteur de notes
+      let compteur = document.getElementById("compteurNotes");
+      compteur.innerText = "Notes : " + mesNotes.length;
+
+      let positionPile = obtenirPositionPile();
+
+      // On parcourt les notes UNE PAR UNE.
+      // (cette boucle veut dire : "pour chaque note de la liste, fais ceci")
+      for (let i = 0; i < mesNotes.length; i++) {
+        let note = mesNotes[i];
+        let titreNote = escapeHtml(note.titre);
+        let contenuNoteHTML = escapeHtml(note.contenu).replace(/\n/g, "<br>");
+        let contenuNoteText = escapeHtml(note.contenu);
+
+        if (i === indexEnEdition) {
+          zone.innerHTML +=
+            '<div class="note">' +
+              '<div class="note-content">' +
+                '<input id="titre-edition-' + i + '" type="text" value="' + titreNote + '">' +
+                '<textarea id="contenu-edition-' + i + '" rows="4">' + contenuNoteText + '</textarea>' +
+                '<div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">' +
+                  '<button onclick="enregistrerModification(' + i + ')">Enregistrer</button>' +
+                  '<button onclick="annulerModification()" style="background: #888;">Annuler</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+        } else {
+          let classeReduit = notesReduites[i] ? ' reduit' : '';
+          let posStyle = '';
+          if (positionsNotes[i]) {
+            let zStyle = positionsNotes[i].z ? ' z-index: ' + positionsNotes[i].z + ';' : '';
+            posStyle = 'style="left: ' + positionsNotes[i].x + 'px; top: ' + positionsNotes[i].y + 'px;' + zStyle + '"';
+          } else {
+            posStyle = 'style="left: ' + positionPile.x + 'px; top: ' + positionPile.y + 'px;"';
+          }
+          zone.innerHTML +=
+            '<div class="note' + classeReduit + '" data-index="' + i + '" ' + posStyle + ' onclick="basculerReduction(' + i + ', event)">' +
+              '<div class="note-content">' +
+                '<h3>' + titreNote + '</h3>' +
+                '<p>'  + contenuNoteHTML + '</p>' +
+              '</div>' +
+              '<div class="note-actions">' +
+                '<button class="button-action button-edit" onclick="demarrerModification(' + i + ', event)">✏️</button>' +
+                '<button class="button-action button-delete" onclick="supprimerNote(' + i + ', event)">❌</button>' +
+              '</div>' +
+            '</div>';
+        }
+      }
+      // Attacher le drag par pointer et souris aux notes rendues
+      zone.querySelectorAll('.note').forEach(function(noteElement) {
+        noteElement.removeEventListener('mousedown', demarrerDeplacement);
+        noteElement.removeEventListener('touchstart', demarrerDeplacement);
+        noteElement.addEventListener('mousedown', demarrerDeplacement);
+        noteElement.addEventListener('touchstart', demarrerDeplacement, { passive: false });
+      });
+      // Dessiner les traits qui relient les notes
+      dessinerLiens();
+    }
+
+    function basculerReduction(index, event) {
+      // Ne pas basculer si on a cliqué sur un bouton, input, textarea
+      if (event.target.classList.contains('button-action') || 
+          event.target.closest('.button-action') ||
+          event.target.closest('input') ||
+          event.target.closest('textarea') ||
+          event.target.closest('button')) {
+        return;
+      }
+      // En mode "Relier", un clic sert à choisir les notes à relier
+      if (modeRelier) {
+        selectionnerPourLien(index);
+        return;
+      }
+      // En mode "Supprimer liens", cliquer une note ne fait rien de spécial :
+      // on laisse le clic remonter pour annuler le mode (voir clic "ailleurs").
+      if (modeSupprimerLiens) {
+        return;
+      }
+      notesReduites[index] = !notesReduites[index];
+      sauvegarderNotesEnStockage();  // pour garder l'état réduit après rechargement
+      afficherLesNotes();
+    }
+
+    function demarrerModification(index, event) {
+      event.stopPropagation();  // Empêcher le click de remonter à la note
+      indexEnEdition = index;
+      afficherLesNotes();
+    }
+
+    function annulerModification() {
+      indexEnEdition = null;
+      afficherLesNotes();
+    }
+
+    function enregistrerModification(index) {
+      let titre = document.getElementById("titre-edition-" + index).value;
+      let contenu = document.getElementById("contenu-edition-" + index).value;
+      if (titre === "") {
+        alert("Donne au moins un titre à ton idée !");
+        return;
+      }
+      mesNotes[index] = { titre: titre, contenu: contenu };
+      sauvegarderNotesEnStockage();
+      indexEnEdition = null;
+      afficherLesNotes();
+    }
+
+    function supprimerNote(index, event) {
+      event.stopPropagation();  // Empêcher le click de remonter à la note
+      if (confirm("Supprimer cette note ?")) {
+        mesNotes.splice(index, 1);
+        delete notesReduites[index];  // Nettoyer l'état réduit
+        // Supprimer les traits touchant cette note, puis décaler les index plus grands
+        liens = liens.filter(function(l) { return l.a !== index && l.b !== index; });
+        liens.forEach(function(l) {
+          if (l.a > index) l.a--;
+          if (l.b > index) l.b--;
+        });
+        sauvegarderNotesEnStockage();
+        if (indexEnEdition === index) { indexEnEdition = null; }
+        afficherLesNotes();
+      }
+    }
+
+    function demarrerDeplacement(event) {
+      // En mode "Relier" ou "Supprimer liens", on ne déplace pas les notes
+      if (modeRelier || modeSupprimerLiens) {
+        return;
+      }
+      if (event.target.closest('input') || event.target.closest('textarea') || event.target.closest('button')) {
+        return;
+      }
+      if (event.type === 'mousedown' && event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      indexEnCoursDeDeplacement = parseInt(event.target.closest('.note').getAttribute('data-index'));
+      noteEnDeplacement = event.target.closest('.note');
+      noteEnDeplacement.classList.add('dragging');
+      // Montrer la ligne supérieure de la zone de déplacement pendant le drag
+      var ligne = document.getElementById('zoneLimite');
+      var zoneDep = document.getElementById('zoneDeplacement');
+      if (ligne && zoneDep) {
+        // forcer la ligne dans le body pour éviter tout contexte de stacking qui la masque
+        if (ligne.parentElement !== document.body) document.body.appendChild(ligne);
+        let zoneRect = zoneDep.getBoundingClientRect();
+        ligne.style.left = zoneRect.left + 'px';
+        ligne.style.top = zoneRect.top + 'px';
+        ligne.style.width = zoneRect.width + 'px';
+        ligne.style.height = '4px';
+        ligne.style.background = '#000';
+        ligne.style.display = 'block';
+        ligne.style.opacity = '1';
+      }
+      let rect = noteEnDeplacement.getBoundingClientRect();
+      let clientX = event.touches ? event.touches[0].clientX : event.clientX;
+      let clientY = event.touches ? event.touches[0].clientY : event.clientY;
+      dragStartX = clientX - rect.left;
+      dragStartY = clientY - rect.top;
+      dragMoved = false;
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
+      document.body.style.msUserSelect = 'none';
+      document.body.addEventListener('selectstart', preventSelect);
+    }
+
+    function preventSelect(event) {
+      event.preventDefault();
+    }
+
+    function deplacerNoteVers(event) {
+      if (!noteEnDeplacement) return;
+      let clientX = event.touches ? event.touches[0].clientX : event.clientX;
+      let clientY = event.touches ? event.touches[0].clientY : event.clientY;
+      event.preventDefault();
+      dragMoved = true;
+      let zone = document.getElementById('listeDesNotes');
+      let zoneRect = zone.getBoundingClientRect();
+      let newX = clientX - dragStartX - zoneRect.left;
+      let newY = clientY - dragStartY - zoneRect.top;
+      newX = Math.max(0, Math.min(newX, zoneRect.width - noteEnDeplacement.offsetWidth));
+      newY = Math.max(0, Math.min(newY, zoneRect.height - noteEnDeplacement.offsetHeight));
+      noteEnDeplacement.style.left = newX + 'px';
+      noteEnDeplacement.style.top = newY + 'px';
+      // Les traits reliés suivent la note en temps réel
+      dessinerLiens();
+    }
+
+    function terminerDeplacement(event) {
+      if (!noteEnDeplacement) return;
+      noteEnDeplacement.classList.remove('dragging');
+      // Masquer la ligne limite à la fin du déplacement (avec animation)
+      var ligneFin = document.getElementById('zoneLimite');
+      if (ligneFin) {
+        ligneFin.style.opacity = '0';
+        setTimeout(function() {
+          ligneFin.style.display = 'none';
+          ligneFin.style.width = '0';
+          // remettre la ligne à l'intérieur de la zone si le DOM a été modifié
+          var container = document.getElementById('listeDesNotes');
+          if (container && ligneFin.parentElement !== container) {
+            container.appendChild(ligneFin);
+            ligneFin.style.top = '0px';
+            ligneFin.style.left = '0px';
+          }
+        }, 220);
+      }
+      let index = parseInt(noteEnDeplacement.getAttribute('data-index'));
+      let newX = parseInt(noteEnDeplacement.style.left || 0);
+      let newY = parseInt(noteEnDeplacement.style.top || 0);
+      positionsNotes[index] = { x: newX, y: newY };
+      amenerNoteAuPremierPlan(index);  // la note déposée reste devant les autres
+      noteEnDeplacement.style.zIndex = positionsNotes[index].z;  // effet immédiat, sans re-affichage
+      sauvegarderNotesEnStockage();
+      if (dragMoved) {
+        noteEnDeplacement.addEventListener('click', function(stopEvent) {
+          stopEvent.stopImmediatePropagation();
+        }, { once: true, capture: true });
+      }
+      noteEnDeplacement = null;
+      indexEnCoursDeDeplacement = null;
+      dragMoved = false;
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.msUserSelect = '';
+      document.body.removeEventListener('selectstart', preventSelect);
+    }
+
+    window.addEventListener('mousemove', deplacerNoteVers);
+    window.addEventListener('touchmove', deplacerNoteVers, { passive: false });
+    window.addEventListener('mouseup', terminerDeplacement);
+    window.addEventListener('touchend', terminerDeplacement);
+    window.addEventListener('touchcancel', terminerDeplacement);
+
+    // En mode "Supprimer liens", un clic AILLEURS que sur un trait ou le bouton
+    // annule tout (désélectionne) et désactive le mode.
+    // (Les clics sur un trait ou sur le bouton appellent stopPropagation et
+    //  n'arrivent donc pas ici.)
+    document.addEventListener('click', function(event) {
+      if (!modeSupprimerLiens) return;
+      if (event.target.closest('#boutonSupprimerLiens')) return;
+      quitterModeSupprimerLiens();
+      dessinerLiens();
+    });
+
+    // ----- TÉLÉCHARGER LES NOTES DANS UN FICHIER -----
+    async function telechargerNotes() {
+      const spinner = document.getElementById('spinner');
+      if (spinner) spinner.style.display = 'inline-block';
+      // Permettre au navigateur d'afficher le spinner avant de bloquer potentiellement le thread
+      await new Promise(requestAnimationFrame);
+      try {
+        let contenuJSON = JSON.stringify(mesNotes, null, 2);
+        let blob = new Blob([contenuJSON], { type: "application/json" });
+        let url = URL.createObjectURL(blob);
+        let lien = document.createElement("a");
+        lien.href = url;
+        lien.download = "mes-notes.json";
+        document.body.appendChild(lien);
+        lien.click();
+        document.body.removeChild(lien);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Erreur durant le téléchargement :', e);
+      } finally {
+        if (spinner) spinner.style.display = 'none';
+      }
+    }
+
+    // Le contrôle manuel est désormais un bouton "Télécharger" unique
+
+    // ----- CHARGER LES NOTES DEPUIS UN FICHIER -----
+    function chargerNotes() {
+      document.getElementById("fichierNotes").click();
+    }
+
+    document.getElementById("fichierNotes").addEventListener("change", function(event) {
+      let fichier = event.target.files[0];
+      if (!fichier) return;
+
+      let lecteur = new FileReader();
+      lecteur.onload = function(e) {
+        try {
+          let notesImportees = JSON.parse(e.target.result);
+          
+          if (Array.isArray(notesImportees)) {
+            mesNotes = notesImportees;
+            sauvegarderNotesEnStockage();
+            afficherLesNotes();
+            alert("✅ Notes chargées avec succès ! (" + mesNotes.length + " note(s))");
+          } else {
+            alert("❌ Le fichier n'est pas au bon format.");
+          }
+        } catch (erreur) {
+          alert("❌ Erreur en lisant le fichier : " + erreur.message);
+        }
+      };
+      lecteur.readAsText(fichier);
+    });
+
+
+    /* ============================================================
+         🎯 À TOI DE JOUER (suis le carnet de bord, étape par étape)
+
+         Défi 1 : change le titre de la page. Cherche le 🧠 plus haut
+                  et remplace "Mon deuxième cerveau" par ce que tu veux.
+                  Sauvegarde, rafraîchis la page : c'est changé !
+
+         Défi 2 : change la couleur du bouton. Cherche "background: #039700"
+                  dans la partie déco et remplace par "blue" ou "purple".
+
+         Défi 3 (plus dur) : afficher le NOMBRE de notes en haut.
+                  On en reparlera, mais essaie de deviner où regarder.
+       ============================================================ */
+
+  </script>
+</body>
+</html>
