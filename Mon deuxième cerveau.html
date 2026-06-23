@@ -349,6 +349,7 @@
     const ZOOM_MAX = 2;     // zoom maximum (200%) : on peut aussi grossir
     const CANEVAS_FACTEUR = 2;  // taille du canevas (2 = deux fois plus grand dans toutes les directions)
     const CASCADE_PAS = 35;     // décalage en diagonale entre deux notes (effet cascade)
+    const LIGNE_LIMITE_HAUTEUR = 4;  // hauteur (px) du trait noir de limite affiché pendant le drag
     let zoomNotes = 1;   // 1 = 100%. Plus petit = dézoomé = on voit plus de choses
     // Déplacement (pan) : de combien de pixels le canevas est décalé à l'écran.
     let panX = 0;
@@ -694,11 +695,11 @@
       let contenuH = rect.height * zoomNotes / ZOOM_MIN * CANEVAS_FACTEUR;
       let minX = Math.min(0, rect.width - contenuW);
       let minY = Math.min(0, rect.height - contenuH);
-      // Limites symétriques : on peut déplacer le contenu autant vers le bas
-      // que vers le haut (et autant à droite qu'à gauche). La limite inférieure
-      // (minX/minY) et la limite supérieure (-minX/-minY) sont équivalentes.
-      panX = Math.min(-minX, Math.max(minX, panX));
-      panY = Math.min(-minY, Math.max(minY, panY));
+      // En bas/à gauche : on peut révéler tout le contenu (minX/minY).
+      // En haut : la limite supérieure est réduite à la hauteur du trait noir
+      // de dépôt, pour ne pas laisser un grand vide au-dessus du contenu.
+      panX = Math.min(LIGNE_LIMITE_HAUTEUR, Math.max(minX, panX));
+      panY = Math.min(LIGNE_LIMITE_HAUTEUR, Math.max(minY, panY));
     }
 
     // Met juste à jour la position/zoom du canevas (rapide, pour le déplacement).
@@ -1073,7 +1074,7 @@
         ligne.style.left = zoneRect.left + 'px';
         ligne.style.top = zoneRect.top + 'px';
         ligne.style.width = zoneRect.width + 'px';
-        ligne.style.height = '4px';
+        ligne.style.height = LIGNE_LIMITE_HAUTEUR + 'px';
         ligne.style.background = '#000';
         ligne.style.display = 'block';
         ligne.style.opacity = '1';
