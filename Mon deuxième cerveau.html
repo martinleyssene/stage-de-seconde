@@ -202,6 +202,7 @@
       width: 100vw;
       top: 300px;
       bottom: 0;
+      transition: top 0.35s ease;   /* remonte/redescend en même temps que le panneau */
       padding: 12px;
       border-top: none; /* rendre invisible */
       background: transparent; /* garder en arrière-plan mais invisible */
@@ -272,6 +273,8 @@
       opacity: 0;
       pointer-events: none;   /* on ne peut plus cliquer dessus quand il est caché */
     }
+    /* (Le "top" de #zoneDeplacement est géré en JS dans basculerPanneau,
+        car il est posé en style inline par ajusterHauteurZoneDeplacement.) */
 
     /* Le bouton "Masquer" reste toujours visible, fixé dans le coin haut-gauche */
     #boutonMasquer {
@@ -398,6 +401,15 @@
       let masque = document.body.classList.toggle('panneau-masque');
       let bouton = document.getElementById('boutonMasquer');
       if (bouton) bouton.textContent = masque ? '▶ Afficher' : '◀ Masquer';
+      // Le fond réservé en haut se rétracte aussi : la zone des notes remonte
+      // jusqu'en haut quand on masque, et revient sous les boutons sinon.
+      // (On agit sur le style "top" inline car il est posé par
+      //  ajusterHauteurZoneDeplacement et l'emporte sur le CSS.)
+      let zoneDep = document.getElementById('zoneDeplacement');
+      if (zoneDep) {
+        if (masque) zoneDep.style.top = '0px';
+        else ajusterHauteurZoneDeplacement();
+      }
     }
 
     function escapeHtml(texte) {
