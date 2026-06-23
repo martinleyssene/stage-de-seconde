@@ -257,7 +257,12 @@
     <span style="margin-left: auto; display: flex; gap: 6px; align-items: center;">
       <span style="font-size: 14px;">Zoom</span>
       <button onclick="changerZoom(-0.1)" title="Dézoomer (zone plus grande)" style="padding: 6px 12px; background: #555;">➖</button>
-      <span id="niveauZoom" style="min-width: 42px; text-align: center; font-size: 14px;">100%</span>
+      <input id="niveauZoom" type="number" min="10" max="200" step="1" value="100"
+             onchange="definirZoom(this.value)"
+             onkeydown="if (event.key === 'Enter') { definirZoom(this.value); this.blur(); }"
+             title="Tape la taille du zoom voulue (en %)"
+             style="width: 56px; margin: 0; text-align: center; font-size: 14px; padding: 6px;">
+      <span style="font-size: 14px;">%</span>
       <button onclick="changerZoom(0.1)" title="Rezoomer" style="padding: 6px 12px; background: #555;">➕</button>
     </span>
   </div>
@@ -300,8 +305,8 @@
     let tailOffset = 20; // pixels à ajouter à la largeur de la ligne (queue)
     const CLE_ZOOM = "mon-deuxieme-cerveau-zoom";
     const CLE_PAN = "mon-deuxieme-cerveau-pan";
-    const ZOOM_MIN = 0.4;   // dézoom maximum (40%) : on voit alors TOUT le canevas
-    const ZOOM_MAX = 1;     // on ne grossit pas au-delà du normal
+    const ZOOM_MIN = 0.1;   // dézoom maximum (10%) : on voit alors TOUT le canevas
+    const ZOOM_MAX = 2;     // zoom maximum (200%) : on peut aussi grossir
     let zoomNotes = 1;   // 1 = 100%. Plus petit = dézoomé = on voit plus de choses
     // Déplacement (pan) : de combien de pixels le canevas est décalé à l'écran.
     let panX = 0;
@@ -676,7 +681,8 @@
       zone.style.height = taille;
       appliquerTransform();
       let label = document.getElementById('niveauZoom');
-      if (label) label.textContent = Math.round(zoomNotes * 100) + '%';
+      // On ne réécrit pas le champ pendant que l'utilisateur est en train d'y taper
+      if (label && document.activeElement !== label) label.value = Math.round(zoomNotes * 100);
       try {
         localStorage.setItem(CLE_ZOOM, zoomNotes);
         localStorage.setItem(CLE_PAN, JSON.stringify({ x: panX, y: panY }));
@@ -688,6 +694,16 @@
     function changerZoom(delta) {
       zoomNotes = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((zoomNotes + delta) * 10) / 10));
       appliquerZoom();
+    }
+
+    // Applique une taille de zoom tapée à la main (en pourcentage).
+    function definirZoom(valeurPourcent) {
+      let pct = parseFloat(valeurPourcent);
+      if (!isNaN(pct)) {
+        // On reste dans les limites autorisées (entre ZOOM_MIN et ZOOM_MAX)
+        zoomNotes = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pct / 100));
+      }
+      appliquerZoom();  // si la valeur est invalide, on réaffiche l'actuelle
     }
 
     function ajusterHauteurZoneDeplacement() {
@@ -1006,6 +1022,11 @@
       panSourisX = p.clientX; panSourisY = p.clientY;
       panDepartX = panX; panDepartY = panY;
       document.body.style.cursor = 'grabbing';
+      // Empêcher la sélection (surlignage) du texte pendant le déplacement
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
+      document.body.style.msUserSelect = 'none';
+      document.body.addEventListener('selectstart', preventSelect);
     }
 
     function deplacerPan(event) {
@@ -1021,6 +1042,11 @@
       if (!enPan) return;
       enPan = false;
       document.body.style.cursor = '';
+      // On réautorise la sélection du texte
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.msUserSelect = '';
+      document.body.removeEventListener('selectstart', preventSelect);
       // On mémorise la nouvelle position
       try { localStorage.setItem(CLE_PAN, JSON.stringify({ x: panX, y: panY })); } catch (e) {}
     }
@@ -1037,6 +1063,24 @@
     window.addEventListener('touchcancel', terminerPan);
     // Si la fenêtre change de taille, on re-cale le canevas proprement
     window.addEventListener('resize', appliquerZoom);
+
+    // ----- ZOOM AU CLAVIER -----
+    // Touche "-" (ou "-" du pavé numérique) = dézoomer, "+" = rezoomer.
+    window.addEventListener('keydown', function(event) {
+      // On ne fait rien si on est en train d'écrire dans un champ ou une note
+      let actif = document.activeElement;
+      if (actif && (actif.tagName === 'INPUT' || actif.tagName === 'TEXTAREA')) return;
+      // On ignore les raccourcis système (Ctrl/Cmd + touche)
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === '-' || event.key === 'Subtract' || event.code === 'NumpadSubtract') {
+        changerZoom(-0.1);   // dézoomer
+        event.preventDefault();
+      } else if (event.key === '+' || event.key === '=' || event.key === 'Add' || event.code === 'NumpadAdd') {
+        changerZoom(0.1);    // rezoomer
+        event.preventDefault();
+      }
+    });
 
     // En mode "Supprimer liens", un clic AILLEURS que sur un trait ou le bouton
     // annule tout (désélectionne) et désactive le mode.
