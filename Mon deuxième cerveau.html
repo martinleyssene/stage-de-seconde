@@ -313,6 +313,7 @@
     const ZOOM_MIN = 0.1;   // dézoom maximum (10%)
     const ZOOM_MAX = 2;     // zoom maximum (200%) : on peut aussi grossir
     const CANEVAS_FACTEUR = 2;  // taille du canevas (2 = deux fois plus grand dans toutes les directions)
+    const CASCADE_PAS = 35;     // décalage en diagonale entre deux notes (effet cascade)
     let zoomNotes = 1;   // 1 = 100%. Plus petit = dézoomé = on voit plus de choses
     // Déplacement (pan) : de combien de pixels le canevas est décalé à l'écran.
     let panX = 0;
@@ -737,18 +738,27 @@
       };
     }
 
-    // Remet tout à zéro : zoom à 100%, notes au CENTRE du canevas, caméra centrée.
+    // Position en CASCADE de la note numéro "i", à partir du centre du canevas.
+    // Ne dépend QUE de i : ainsi une note ajoutée se place exactement là où
+    // "Réinitialiser" la mettrait. La note 0 est au centre, les suivantes
+    // sont décalées en diagonale (vers le bas-droite).
+    function positionCascade(i) {
+      let c = tailleCanevas();
+      return {
+        x: Math.round(c.largeur / 2 - 220 + i * CASCADE_PAS),   // 220 ≈ moitié de la largeur d'une note
+        y: Math.round(c.hauteur / 2 - 80 + i * CASCADE_PAS)
+      };
+    }
+
+    // Remet tout à zéro : zoom à 100%, notes en cascade au centre, caméra centrée.
     function reinitialiserVue() {
       zoomNotes = 1;                       // zoom à 100%
       let c = tailleCanevas();
-      // On place les notes au centre du canevas (empilées et centrées verticalement)
-      let baseX = Math.round(c.largeur / 2 - 220);   // 220 ≈ moitié de la largeur d'une note
-      let baseY = Math.round(c.hauteur / 2 - 80 - (mesNotes.length - 1) * 55);
       positionsNotes = {};
       for (let i = 0; i < mesNotes.length; i++) {
-        positionsNotes[i] = { x: baseX, y: baseY + i * 110 };
+        positionsNotes[i] = positionCascade(i);   // notes en cascade
       }
-      // On centre la caméra sur le centre du canevas
+      // On centre la caméra sur le centre du canevas (là où commence la cascade)
       panX = c.vueLargeur / 2 - (c.largeur / 2) * zoomNotes;
       panY = c.vueHauteur / 2 - (c.hauteur / 2) * zoomNotes;
       afficherLesNotes();             // on réaffiche les notes à leur nouvelle place
@@ -787,7 +797,9 @@
       // 3) On range la nouvelle note dans notre boîte "mesNotes".
       //    Une note est un petit paquet avec un titre et un contenu.
       mesNotes.push({ titre: titre, contenu: contenu });
-      positionsNotes[mesNotes.length - 1] = obtenirPositionPile();
+      // La nouvelle note se place à sa position de cascade (la même que
+      // celle que lui donnerait le bouton "Réinitialiser").
+      positionsNotes[mesNotes.length - 1] = positionCascade(mesNotes.length - 1);
 
       // 4) On sauvegarde immédiatement en localStorage
       sauvegarderNotesEnStockage();
