@@ -325,6 +325,7 @@
     <div id="zoneBoutons" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; justify-content: center;">
     <button onclick="chargerNotes()" style="background: #ff9900;">📤 Charger des notes</button>
     <button id="telechargerUneFois" onclick="telechargerNotes()" style="background: #0066cc;">Télécharger</button>
+    <button id="boutonPartager" onclick="partagerNotes()" title="Crée un fichier HTML contenant tes notes, à envoyer à qui tu veux" style="background: #009688;">🔗 Partager</button>
     <button id="boutonRelier" onclick="basculerModeRelier()" style="background: #6b3fa0;">🔗 Relier</button>
     <button id="boutonSupprimerLiens" onclick="basculerModeSupprimerLiens(event)" style="background: #888;">🗑️ Supprimer liens</button>
     <span id="spinner" style="display: none;" class="spinner" aria-hidden="true"></span>
@@ -357,7 +358,15 @@
   <!-- ---------- JS : le cerveau. C'est lui qui fait tout marcher ---------- -->
   <script>
 
-    const CLE_STOCKAGE = "mon-deuxieme-cerveau-notes";
+    // Si la page a été ouverte depuis un fichier PARTAGÉ, on ajoute un suffixe
+    // unique aux clés de stockage : ainsi les notes partagées ne se mélangent
+    // pas avec les notes personnelles du destinataire, et chaque fichier
+    // partagé garde ses propres modifications de son côté.
+    const SUFFIXE_PARTAGE =
+      (window.__NOTES_PARTAGEES__ && window.__NOTES_PARTAGEES__.id)
+        ? ("-" + window.__NOTES_PARTAGEES__.id)
+        : "";
+    const CLE_STOCKAGE = "mon-deuxieme-cerveau-notes" + SUFFIXE_PARTAGE;
 
     // Une VARIABLE, c'est une boîte avec une étiquette dans laquelle
     // on range quelque chose. Ici, une boîte qui contiendra TOUTES
@@ -383,8 +392,8 @@
     let dragStartX = 0;  // Position initiale du drag
     let dragStartY = 0;
     let tailOffset = 20; // pixels à ajouter à la largeur de la ligne (queue)
-    const CLE_ZOOM = "mon-deuxieme-cerveau-zoom";
-    const CLE_PAN = "mon-deuxieme-cerveau-pan";
+    const CLE_ZOOM = "mon-deuxieme-cerveau-zoom" + SUFFIXE_PARTAGE;
+    const CLE_PAN = "mon-deuxieme-cerveau-pan" + SUFFIXE_PARTAGE;
     const ZOOM_MIN = 0.1;   // dézoom maximum (10%)
     const ZOOM_MAX = 2;     // zoom maximum (200%) : on peut aussi grossir
     const CANEVAS_FACTEUR = 2;  // taille du canevas (2 = deux fois plus grand dans toutes les directions)
@@ -422,6 +431,22 @@
     }
 
     // On charge automatiquement les notes sauvegardées au démarrage
+    // Fichier PARTAGÉ : à la TOUTE PREMIÈRE ouverture (rien encore en stockage
+    // pour ce fichier), on installe les notes intégrées dans le stockage local.
+    // Ensuite, on n'y touche plus : le destinataire peut modifier les notes et
+    // SES changements sont gardés (ta version d'origine ne revient pas).
+    function installerNotesPartageesUneFois() {
+      let p = window.__NOTES_PARTAGEES__;
+      if (!p) return;
+      if (localStorage.getItem(CLE_STOCKAGE) !== null) return;  // déjà ouvert ici
+      localStorage.setItem(CLE_STOCKAGE, JSON.stringify(p.notes || []));
+      localStorage.setItem(CLE_STOCKAGE + "-positions", JSON.stringify(p.positions || {}));
+      localStorage.setItem(CLE_STOCKAGE + "-liens", JSON.stringify(p.liens || []));
+      localStorage.setItem(CLE_STOCKAGE + "-reduites", JSON.stringify(p.reduites || {}));
+      if (p.zoom) localStorage.setItem(CLE_ZOOM, p.zoom);
+      if (p.pan) localStorage.setItem(CLE_PAN, JSON.stringify(p.pan));
+    }
+
     function chargerNotesDepuisStockage() {
       let notesSauvegardees = localStorage.getItem(CLE_STOCKAGE);
       if (notesSauvegardees) {
@@ -718,6 +743,7 @@
       });
     }
 
+    installerNotesPartageesUneFois();   // 1re ouverture d'un fichier partagé : on sème les notes
     chargerNotesDepuisStockage();
     // On NE recentre plus les notes à chaque ouverture : elles gardent
     // la position où on les a laissées. On ne place au centre que si
@@ -1375,6 +1401,47 @@
       if ((await handle.queryPermission(opts)) === "granted") return true;
       if (demander && (await handle.requestPermission(opts)) === "granted") return true;
       return false;
+    }
+
+    // ----- PARTAGER : créer un fichier HTML autonome avec les notes dedans -----
+    // On copie toute la page actuelle et on y INTÈGRE les notes. Le fichier
+    // obtenu peut être envoyé à n'importe qui : en l'ouvrant, la personne voit
+    // tes notes (un instantané), sans rien installer et même hors ligne.
+    function partagerNotes() {
+      try {
+        // 1) On rassemble l'état actuel des notes.
+        //    L'identifiant unique isole ce partage : le destinataire pourra
+        //    modifier les notes et garder SES changements de son côté.
+        let donnees = {
+          id: Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36),
+          notes: mesNotes,
+          positions: positionsNotes,
+          liens: liens,
+          reduites: notesReduites,
+          zoom: zoomNotes,
+          pan: { x: panX, y: panY }
+        };
+        // 2) On sérialise toute la page (HTML + CSS + JS, déjà tout-en-un).
+        let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        // 3) On ajoute un petit script qui pré-remplit les notes à l'ouverture.
+        //    On échappe les '<' pour ne pas casser la balise de fin de script.
+        let json = JSON.stringify(donnees).split('<').join('\\u003c');
+        let scriptData = '<scr' + 'ipt>window.__NOTES_PARTAGEES__ = ' + json + ';</scr' + 'ipt>';
+        html = html.replace('</head>', scriptData + '\n</head>');
+        // 4) On télécharge le fichier autonome.
+        let blob = new Blob([html], { type: 'text/html' });
+        let url = URL.createObjectURL(blob);
+        let lien = document.createElement('a');
+        lien.href = url;
+        lien.download = 'mes-notes-partagees.html';
+        document.body.appendChild(lien);
+        lien.click();
+        document.body.removeChild(lien);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Erreur lors du partage :', e);
+        alert("Impossible de générer le fichier de partage.");
+      }
     }
 
     // ----- TÉLÉCHARGER LES NOTES DANS UN FICHIER -----
