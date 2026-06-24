@@ -1158,21 +1158,7 @@
       indexEnCoursDeDeplacement = parseInt(event.target.closest('.note').getAttribute('data-index'));
       noteEnDeplacement = event.target.closest('.note');
       noteEnDeplacement.classList.add('dragging');
-      // Montrer la ligne supérieure de la zone de déplacement pendant le drag
-      var ligne = document.getElementById('zoneLimite');
-      var zoneDep = document.getElementById('zoneDeplacement');
-      if (ligne && zoneDep) {
-        // forcer la ligne dans le body pour éviter tout contexte de stacking qui la masque
-        if (ligne.parentElement !== document.body) document.body.appendChild(ligne);
-        let zoneRect = zoneDep.getBoundingClientRect();
-        ligne.style.left = zoneRect.left + 'px';
-        ligne.style.top = zoneRect.top + 'px';
-        ligne.style.width = zoneRect.width + 'px';
-        ligne.style.height = LIGNE_LIMITE_HAUTEUR + 'px';
-        ligne.style.background = '#000';
-        ligne.style.display = 'block';
-        ligne.style.opacity = '1';
-      }
+      // (La ligne noire de limite n'est plus affichée pendant le déplacement.)
       let rect = noteEnDeplacement.getBoundingClientRect();
       let clientX = event.touches ? event.touches[0].clientX : event.clientX;
       let clientY = event.touches ? event.touches[0].clientY : event.clientY;
