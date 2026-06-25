@@ -1810,7 +1810,15 @@
         // que la note ne "saute" pas à l'origine (0,0) — et donc ne disparaisse
         // pas hors écran — quand on clique sur ✏️ pour la modifier.
         // Couleur de fond éventuelle de la note (vide = blanc par défaut).
-        let fond = note.couleur ? (' background: ' + note.couleur + ';') : '';
+        // SÉCURITÉ : la couleur peut venir d'un fichier .json importé (donc non
+        // fiable). On n'accepte QUE des valeurs de couleur inoffensives
+        // (#hex, rgb()/rgba(), hsl()/hsla(), ou un simple nom comme "red").
+        // Tout le reste est ignoré, pour empêcher une injection via l'attribut style.
+        let couleurSure = '';
+        if (note.couleur && /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([0-9.,%\s/]+\)|[a-zA-Z]+)$/.test(note.couleur)) {
+          couleurSure = note.couleur;
+        }
+        let fond = couleurSure ? (' background: ' + couleurSure + ';') : '';
         let posStyle = '';
         if (positionsNotes[i]) {
           let zStyle = positionsNotes[i].z ? ' z-index: ' + positionsNotes[i].z + ';' : '';
@@ -1837,7 +1845,14 @@
           let imagesHTML = '';
           if (note.images && note.images.length) {
             for (let k = 0; k < note.images.length; k++) {
-              imagesHTML += '<img class="note-image" src="' + note.images[k] + '" alt="image de la note">';
+              // SÉCURITÉ : la source d'image peut venir d'un fichier .json importé
+              // (non fiable). On n'accepte que les images intégrées (data:image/…)
+              // ou les liens http(s), et on échappe la valeur pour empêcher toute
+              // sortie de l'attribut src (injection d'un onerror, etc.).
+              let src = note.images[k];
+              if (typeof src === 'string' && /^(data:image\/|https?:\/\/)/.test(src)) {
+                imagesHTML += '<img class="note-image" src="' + escapeHtml(src) + '" alt="image de la note">';
+              }
             }
           }
           // Petite icône "paysage" (cadre + soleil + montagnes) pour le bouton
