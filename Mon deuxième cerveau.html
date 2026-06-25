@@ -273,6 +273,26 @@
       pointer-events: none;   /* il ne doit jamais intercepter les clics */
     }
 
+    /* ----- Fenêtre de partage (lien à copier) ----- */
+    #modalPartage {
+      position: fixed;
+      inset: 0;
+      display: none;            /* affichée en "flex" par le JS */
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 100001;
+    }
+    #modalPartageBoite {
+      background: #fff;
+      color: #2c2c2a;
+      padding: 22px 24px;
+      border-radius: 12px;
+      max-width: 460px;
+      width: calc(100% - 40px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
     /* ----- Panneau de saisie rétractable ----- */
     /* Le panneau qui contient le titre, la saisie et tous les boutons.
        On lui ajoute une transition pour qu'il glisse en douceur. */
@@ -338,7 +358,7 @@
     <div id="zoneBoutons" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; justify-content: center;">
     <button onclick="chargerNotes()" style="background: #ff9900;">📤 Charger des notes</button>
     <button id="telechargerUneFois" onclick="telechargerNotes()" style="background: #0066cc;">Télécharger</button>
-    <button id="boutonPartager" onclick="partagerNotes()" title="Crée un fichier HTML contenant tes notes, à envoyer à qui tu veux" style="background: #009688;">🔗 Partager</button>
+    <button id="boutonPartager" onclick="partagerNotes()" title="Affiche le lien de l'application à copier et envoyer à qui tu veux" style="background: #009688;">🔗 Partager</button>
     <button id="boutonRelier" onclick="basculerModeRelier()" style="background: #6b3fa0;">🔗 Relier</button>
     <button id="boutonSupprimerLiens" onclick="basculerModeSupprimerLiens(event)" style="background: #888;">🗑️ Supprimer liens</button>
     <button id="boutonSelection" onclick="basculerModeSelection()" title="Sélectionner plusieurs notes en traçant un rectangle, puis les déplacer ensemble" style="background: #1e88e5;">⬚ Sélection</button>
@@ -369,6 +389,20 @@
   </div>
   <!-- Rectangle bleu tracé pendant la sélection multiple -->
   <div id="rectSelection" aria-hidden="true"></div>
+
+  <!-- Fenêtre de partage : affiche le lien de l'application à copier -->
+  <div id="modalPartage" role="dialog" aria-modal="true">
+    <div id="modalPartageBoite">
+      <h2 style="margin-top: 0;">Partager l'application</h2>
+      <p>Copie ce lien et envoie-le à qui tu veux :</p>
+      <input id="lienPartage" type="text" readonly value="">
+      <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+        <button onclick="copierLienPartage()" style="background: #009688;">📋 Copier le lien</button>
+        <button onclick="fermerModalPartage()" style="background: #888;">Fermer</button>
+      </div>
+      <p id="lienCopieMsg" style="display: none; color: #2e8b57; margin-bottom: 0;">Lien copié ✅</p>
+    </div>
+  </div>
 
 
   <!-- ---------- JS : le cerveau. C'est lui qui fait tout marcher ---------- -->
@@ -1607,45 +1641,44 @@
       return false;
     }
 
-    // ----- PARTAGER : créer un fichier HTML autonome avec les notes dedans -----
-    // On copie toute la page actuelle et on y INTÈGRE les notes. Le fichier
-    // obtenu peut être envoyé à n'importe qui : en l'ouvrant, la personne voit
-    // tes notes (un instantané), sans rien installer et même hors ligne.
+    // ----- PARTAGER : afficher le lien de l'application à copier -----
+    // Le bouton ouvre une petite fenêtre montrant l'adresse du site, avec un
+    // bouton pour la copier et l'envoyer à n'importe qui.
+    const LIEN_PARTAGE = 'https://martinleyssene.github.io/stage-de-seconde/';
+
     function partagerNotes() {
-      try {
-        // 1) On rassemble l'état actuel des notes.
-        //    L'identifiant unique isole ce partage : le destinataire pourra
-        //    modifier les notes et garder SES changements de son côté.
-        let donnees = {
-          id: Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36),
-          notes: mesNotes,
-          positions: positionsNotes,
-          liens: liens,
-          reduites: notesReduites,
-          zoom: zoomNotes,
-          pan: { x: panX, y: panY }
-        };
-        // 2) On sérialise toute la page (HTML + CSS + JS, déjà tout-en-un).
-        let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-        // 3) On ajoute un petit script qui pré-remplit les notes à l'ouverture.
-        //    On échappe les '<' pour ne pas casser la balise de fin de script.
-        let json = JSON.stringify(donnees).split('<').join('\\u003c');
-        let scriptData = '<scr' + 'ipt>window.__NOTES_PARTAGEES__ = ' + json + ';</scr' + 'ipt>';
-        html = html.replace('</head>', scriptData + '\n</head>');
-        // 4) On télécharge le fichier autonome.
-        let blob = new Blob([html], { type: 'text/html' });
-        let url = URL.createObjectURL(blob);
-        let lien = document.createElement('a');
-        lien.href = url;
-        lien.download = 'mes-notes-partagees.html';
-        document.body.appendChild(lien);
-        lien.click();
-        document.body.removeChild(lien);
-        URL.revokeObjectURL(url);
-      } catch (e) {
-        console.error('Erreur lors du partage :', e);
-        alert("Impossible de générer le fichier de partage.");
+      let modal = document.getElementById('modalPartage');
+      let champ = document.getElementById('lienPartage');
+      let msg = document.getElementById('lienCopieMsg');
+      if (msg) msg.style.display = 'none';
+      if (champ) champ.value = LIEN_PARTAGE;
+      if (modal) modal.style.display = 'flex';
+      // On présélectionne le lien pour pouvoir le copier tout de suite (Ctrl/Cmd+C)
+      if (champ) { champ.focus(); champ.select(); }
+    }
+
+    // Copie le lien dans le presse-papiers.
+    function copierLienPartage() {
+      let champ = document.getElementById('lienPartage');
+      let msg = document.getElementById('lienCopieMsg');
+      let montrerOk = function() { if (msg) msg.style.display = 'block'; };
+      // Méthode moderne (navigateurs récents, contexte sécurisé)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(LIEN_PARTAGE).then(montrerOk).catch(function() {
+          // Repli : on sélectionne le champ et on copie à l'ancienne
+          if (champ) { champ.focus(); champ.select(); }
+          try { document.execCommand('copy'); montrerOk(); } catch (e) {}
+        });
+      } else if (champ) {
+        champ.focus(); champ.select();
+        try { document.execCommand('copy'); montrerOk(); } catch (e) {}
       }
+    }
+
+    // Ferme la fenêtre de partage.
+    function fermerModalPartage() {
+      let modal = document.getElementById('modalPartage');
+      if (modal) modal.style.display = 'none';
     }
 
     // ----- TÉLÉCHARGER LES NOTES DANS UN FICHIER -----
