@@ -385,6 +385,26 @@
       color: #888;
     }
     #paletteCouleurs .pastille:hover { transform: scale(1.15); border-color: #555; }
+    /* Sélecteur de couleur libre (input natif) dans la palette */
+    #paletteCouleurs input.pastille-perso {
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      margin: 0;
+      border: 2px solid #555;
+      border-radius: 50%;
+      cursor: pointer;
+      background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);  /* indique "toutes les couleurs" */
+      box-sizing: border-box;
+    }
+    #paletteCouleurs input.pastille-perso:hover { transform: scale(1.15); }
+    /* Le "remplissage" du sélecteur affiche un arc-en-ciel (= choisir une couleur) */
+    #paletteCouleurs input.pastille-perso::-webkit-color-swatch-wrapper { padding: 0; }
+    #paletteCouleurs input.pastille-perso::-webkit-color-swatch {
+      border: none;
+      border-radius: 50%;
+      background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+    }
 
     /* ----- Fenêtre de partage (lien à copier) ----- */
     #modalPartage {
@@ -954,6 +974,24 @@
         d.onclick = function(e) { e.stopPropagation(); choisirCouleurNote(c.val); };
         pal.appendChild(d);
       });
+      // Sélecteur de couleur LIBRE (toutes les couleurs) : ouvre le sélecteur
+      // natif du navigateur (roue chromatique, curseurs, code hex…).
+      let perso = document.createElement('input');
+      perso.type = 'color';
+      perso.className = 'pastille-perso';
+      perso.title = 'Choisir n\'importe quelle couleur';
+      perso.value = (mesNotes[index] && /^#/.test(mesNotes[index].couleur || '')) ? mesNotes[index].couleur : '#ffffff';
+      perso.onclick = function(e) { e.stopPropagation(); };   // ne pas refermer la palette
+      perso.onchange = function(e) {
+        e.stopPropagation();
+        if (mesNotes[index]) {
+          mesNotes[index].couleur = perso.value;
+          sauvegarderNotesEnStockage();
+          afficherLesNotes();
+        }
+        fermerPalette();
+      };
+      pal.appendChild(perso);
       // On affiche d'abord (pour pouvoir mesurer la palette), puis on la place
       // À DROITE de la note, centrée verticalement, avec un petit écart.
       pal.style.display = 'flex';
