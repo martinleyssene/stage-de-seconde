@@ -1253,7 +1253,9 @@
       // 6) On redessine la liste à l'écran (recette juste en dessous).
       afficherLesNotes();
 
-      // 7) (Le téléchargement périodique a été déplacé vers un timer toutes les 10 minutes)
+      // 7) Par sécurité, on enregistre aussi dans le fichier (mode silencieux :
+      //    réécrit le fichier mémorisé sur Chrome/Edge, sans ouvrir de fenêtre).
+      telechargerNotes(true);
     }
 
 
@@ -1905,7 +1907,17 @@
       // Permettre au navigateur d'afficher le spinner avant de bloquer potentiellement le thread
       await new Promise(requestAnimationFrame);
       try {
-        let contenuJSON = JSON.stringify(mesNotes, null, 2);
+        // On enregistre AUSSI les positions, les liens et l'état réduit, pour
+        // que la disposition des notes soit conservée — même sur un autre appareil.
+        let donneesExport = {
+          format: "mon-deuxieme-cerveau",
+          version: 1,
+          notes: mesNotes,
+          positions: positionsNotes,
+          liens: liens,
+          reduites: notesReduites
+        };
+        let contenuJSON = JSON.stringify(donneesExport, null, 2);
 
         // CAS 1 : le navigateur sait écrire directement dans un fichier
         // (Chrome, Edge...). On réutilise toujours le MÊME fichier.
@@ -2001,15 +2013,29 @@
     // Petite fonction commune qui range les notes importées (texte JSON).
     function appliquerNotesImportees(texte) {
       try {
-        let notesImportees = JSON.parse(texte);
-        if (Array.isArray(notesImportees)) {
-          mesNotes = notesImportees;
-          sauvegarderNotesEnStockage();
-          afficherLesNotes();
-          alert("✅ Notes chargées avec succès ! (" + mesNotes.length + " note(s))");
+        let data = JSON.parse(texte);
+        if (Array.isArray(data)) {
+          // Ancien format : une simple liste de notes (sans positions).
+          // On repart d'une disposition propre (les notes seront recentrées).
+          mesNotes = data;
+          positionsNotes = {};
+          liens = [];
+          notesReduites = {};
+        } else if (data && Array.isArray(data.notes)) {
+          // Nouveau format : on restaure aussi la disposition (positions, liens…).
+          mesNotes = data.notes;
+          positionsNotes = data.positions || {};
+          liens = Array.isArray(data.liens) ? data.liens : [];
+          notesReduites = data.reduites || {};
         } else {
           alert("❌ Le fichier n'est pas au bon format.");
+          return;
         }
+        sauvegarderNotesEnStockage();
+        // Ne recentre QUE si le fichier n'avait pas de positions enregistrées.
+        recentrerNotesAuCentre(false);
+        afficherLesNotes();
+        alert("✅ Notes chargées avec succès ! (" + mesNotes.length + " note(s))");
       } catch (erreur) {
         alert("❌ Erreur en lisant le fichier : " + erreur.message);
       }
