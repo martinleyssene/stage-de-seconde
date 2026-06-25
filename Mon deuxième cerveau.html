@@ -304,6 +304,38 @@
       transform: scale(1.18);
     }
 
+    /* ----- Petits messages (toasts) ----- */
+    #toasts {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100002;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      pointer-events: none;   /* les toasts ne bloquent pas les clics */
+    }
+    .toast {
+      max-width: 420px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.4;
+      white-space: pre-line;  /* respecte les retours à la ligne du message */
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    .toast.toast-visible { opacity: 1; transform: translateY(0); }
+    .toast-info     { background: #37474f; }
+    .toast-succes   { background: #2e7d32; }
+    .toast-erreur   { background: #c62828; }
+    .toast-attention{ background: #ef6c00; }
+
     /* ----- Fenêtre de partage (lien à copier) ----- */
     #modalPartage {
       position: fixed;
@@ -508,6 +540,9 @@
        glisser des notes et on les lâche dessus pour les supprimer. -->
   <div id="corbeille" aria-hidden="true" title="Glisse des notes ici pour les supprimer">🗑️</div>
 
+  <!-- Zone des petits messages (toasts) qui apparaissent puis disparaissent -->
+  <div id="toasts" aria-live="polite"></div>
+
   <!-- Fenêtre de partage : affiche le lien de l'application à copier -->
   <div id="modalPartage" role="dialog" aria-modal="true">
     <div id="modalPartageBoite">
@@ -647,6 +682,25 @@
         .replace(/>/g, "&gt;")
         .replace(/\"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    // Affiche un petit message (toast) qui apparaît puis disparaît tout seul.
+    // type : 'info' (défaut), 'succes', 'erreur', 'attention'.
+    function afficherToast(message, type, duree) {
+      let zone = document.getElementById('toasts');
+      if (!zone) { return; }
+      let t = document.createElement('div');
+      t.className = 'toast toast-' + (type || 'info');
+      t.textContent = message;
+      zone.appendChild(t);
+      // Apparition (au prochain rafraîchissement, pour déclencher la transition)
+      requestAnimationFrame(function() { t.classList.add('toast-visible'); });
+      // Disparition automatique (plus long pour les erreurs/avertissements)
+      let ms = duree || ((type === 'erreur' || type === 'attention') ? 6000 : 3200);
+      setTimeout(function() {
+        t.classList.remove('toast-visible');
+        setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
+      }, ms);
     }
 
     // On charge automatiquement les notes sauvegardées au démarrage
@@ -1270,7 +1324,7 @@
 
     function supprimerOnglet(id, event) {
       if (event) event.stopPropagation();
-      if (onglets.length <= 1) { alert("Tu ne peux pas supprimer le dernier onglet."); return; }
+      if (onglets.length <= 1) { afficherToast("Tu ne peux pas supprimer le dernier onglet.", 'attention'); return; }
       let tab = onglets.find(function(o) { return o.id === id; });
       if (!tab) return;
       if (!confirm('Supprimer l\'onglet « ' + tab.nom + ' » et toutes ses notes ?')) return;
@@ -1310,6 +1364,15 @@
     afficherBarreOnglets();
     chargerEtAfficherOngletActif();     // charge et affiche les notes de l'onglet actif
     initTitrePrincipal();               // titre principal éditable
+
+    // Entrée dans le champ "Titre" → ajoute la note directement.
+    // (Dans le contenu, qui est un textarea, Entrée sert à aller à la ligne.)
+    (function() {
+      let champT = document.getElementById('champTitre');
+      if (champT) champT.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); ajouterNote(); }
+      });
+    })();
     // Démarrer l'auto-téléchargement toutes les 10 minutes (600000 ms)
     var autoDownloadInterval = setInterval(function() { telechargerNotes(true); }, 10 * 60 * 1000);
 
@@ -1463,7 +1526,7 @@
 
       // 2) Si le titre est vide, on arrête là (on ne crée pas de note vide).
       if (titre === "") {
-        alert("Donne au moins un titre à ton idée !");
+        afficherToast("Donne au moins un titre à ton idée !", 'attention');
         return;   // "return" = on sort de la recette tout de suite
       }
 
@@ -1623,7 +1686,7 @@
         try {
           sauvegarderNotesEnStockage();
         } catch (err) {
-          alert("⚠️ Les images sont trop lourdes pour être conservées dans le navigateur. Elles s'affichent, mais risquent de disparaître au rechargement. Pense à télécharger tes notes.");
+          afficherToast("⚠️ Les images sont trop lourdes pour être conservées dans le navigateur. Elles s'affichent, mais risquent de disparaître au rechargement. Pense à télécharger tes notes.", 'attention');
         }
         afficherLesNotes();
       }
@@ -1677,7 +1740,7 @@
       let titre = document.getElementById("titre-edition-" + index).value;
       let contenu = document.getElementById("contenu-edition-" + index).value;
       if (titre === "") {
-        alert("Donne au moins un titre à ton idée !");
+        afficherToast("Donne au moins un titre à ton idée !", 'attention');
         return;
       }
       // On garde les autres champs de la note (notamment ses images) :
@@ -2060,9 +2123,9 @@
     // ----- ZOOM AU CLAVIER -----
     // Touche "-" (ou "-" du pavé numérique) = dézoomer, "+" = rezoomer.
     window.addEventListener('keydown', function(event) {
-      // On ne fait rien si on est en train d'écrire dans un champ ou une note
+      // On ne fait rien si on est en train d'écrire dans un champ ou le titre.
       let actif = document.activeElement;
-      if (actif && (actif.tagName === 'INPUT' || actif.tagName === 'TEXTAREA')) return;
+      if (actif && (actif.tagName === 'INPUT' || actif.tagName === 'TEXTAREA' || actif.isContentEditable)) return;
       // On ignore les raccourcis système (Ctrl/Cmd + touche)
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 
@@ -2072,6 +2135,26 @@
       } else if (event.key === '+' || event.key === '=' || event.key === 'Add' || event.code === 'NumpadAdd') {
         changerZoom(0.1);    // rezoomer
         event.preventDefault();
+      } else if (event.key === 'Delete' || event.key === 'Backspace') {
+        // Suppr : supprime les notes sélectionnées (avec confirmation).
+        if (notesSelectionnees.length > 0) {
+          event.preventDefault();
+          let nb = notesSelectionnees.length;
+          if (confirm(nb > 1 ? ('Supprimer ces ' + nb + ' notes ?') : 'Supprimer cette note ?')) {
+            memoriserAvantSuppression();
+            supprimerNotesParIndices(notesSelectionnees.slice());
+            notesSelectionnees = [];
+            indexEnEdition = null;
+            sauvegarderNotesEnStockage();
+            afficherLesNotes();
+          }
+        }
+      } else if (event.key === 'Escape') {
+        // Échap : on sort du mode en cours ou on vide la sélection.
+        if (modeRelier) basculerModeRelier();
+        else if (modeSupprimerLiens) { quitterModeSupprimerLiens(); dessinerLiens(); }
+        else if (modeSelection) basculerModeSelection();
+        else if (notesSelectionnees.length > 0) viderSelection();
       }
     });
 
@@ -2349,7 +2432,7 @@
             localStorage.setItem(CLE_TITRE, data.titre.trim());
           }
         } else {
-          alert("❌ Le fichier n'est pas au bon format.");
+          afficherToast("❌ Le fichier n'est pas au bon format.", 'erreur');
           return;
         }
         sauvegarderNotesEnStockage();
@@ -2357,12 +2440,12 @@
         recentrerNotesAuCentre(false);
         afficherLesNotes();
         if (ancienFormat) {
-          alert("✅ " + mesNotes.length + " note(s) chargée(s).\n\n⚠️ Ce fichier est à l'ancien format : il ne contenait NI les positions NI les liens (les notes ont donc été replacées automatiquement).\nPour conserver la disposition, re-télécharge tes notes depuis la version à jour de l'application, puis recharge CE nouveau fichier.");
+          afficherToast("✅ " + mesNotes.length + " note(s) chargée(s).\n\n⚠️ Ce fichier est à l'ancien format : il ne contenait NI les positions NI les liens (les notes ont donc été replacées automatiquement).\nPour conserver la disposition, re-télécharge tes notes depuis la version à jour, puis recharge CE nouveau fichier.", 'attention', 8000);
         } else {
-          alert("✅ Notes chargées avec succès ! (" + mesNotes.length + " note(s), positions et liens restaurés)");
+          afficherToast("✅ Notes chargées ! (" + mesNotes.length + " note(s), positions et liens restaurés)", 'succes');
         }
       } catch (erreur) {
-        alert("❌ Erreur en lisant le fichier : " + erreur.message);
+        afficherToast("❌ Erreur en lisant le fichier : " + erreur.message, 'erreur');
       }
     }
 
