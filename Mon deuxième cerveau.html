@@ -437,7 +437,7 @@
   <!-- ---------- HTML : le squelette de la page ---------- -->
 
   <!-- Bouton fixé dans le coin supérieur gauche : rétracte/affiche le panneau -->
-  <button id="boutonMasquer" onclick="basculerPanneau()" title="Masquer ou afficher le panneau">◀ Masquer</button>
+  <button id="boutonMasquer" onclick="basculerPanneau()" title="Masquer ou afficher le panneau">▲ Masquer</button>
 
   <!-- Barre du haut : quand le panneau est masqué, les boutons d'action
        viennent s'y aligner (à côté du bouton Masquer). Vide sinon. -->
@@ -602,7 +602,7 @@
 
       let masque = document.body.classList.toggle('panneau-masque');
       let bouton = document.getElementById('boutonMasquer');
-      if (bouton) bouton.textContent = masque ? '▶ Afficher' : '◀ Masquer';
+      if (bouton) bouton.textContent = masque ? '▼ Afficher' : '▲ Masquer';
 
       // Les boutons d'action ne disparaissent plus : quand on masque, on les
       // déplace dans la barre du haut (à côté de "Masquer") ; quand on affiche,
