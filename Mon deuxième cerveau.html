@@ -401,6 +401,29 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.25);
     }
     #boutonMasquer:hover { background: #333; }
+
+    /* Barre où les boutons d'action remontent quand le panneau est masqué */
+    #barreBoutonsHaut {
+      position: fixed;
+      top: 8px;
+      left: 120px;        /* juste à droite du bouton "Masquer" */
+      right: 8px;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+    }
+    /* Allure des boutons une fois dans la barre du haut : pas de trait/marge
+       de séparation, alignés à gauche, et retour à la ligne si ça déborde. */
+    #barreBoutonsHaut #zoneBoutons {
+      margin-top: 0 !important;
+      padding: 6px 8px !important;
+      border-top: none !important;
+      justify-content: flex-start !important;
+      flex-wrap: wrap !important;
+      background: rgba(244, 241, 234, 0.95);
+      border-radius: 10px;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+    }
   </style>
 </head>
 
@@ -410,6 +433,10 @@
 
   <!-- Bouton fixé dans le coin supérieur gauche : rétracte/affiche le panneau -->
   <button id="boutonMasquer" onclick="basculerPanneau()" title="Masquer ou afficher le panneau">◀ Masquer</button>
+
+  <!-- Barre du haut : quand le panneau est masqué, les boutons d'action
+       viennent s'y aligner (à côté du bouton Masquer). Vide sinon. -->
+  <div id="barreBoutonsHaut"></div>
 
   <!-- Panneau (titre + saisie + boutons) qui peut se rétracter vers la gauche -->
   <div id="panneauSaisie">
@@ -561,17 +588,48 @@
     // Rétracte le panneau (titre + saisie + boutons) vers la gauche, ou le
     // réaffiche. Le bouton change de texte selon l'état.
     function basculerPanneau() {
+      let zoneBoutons = document.getElementById('zoneBoutons');
+      let barreHaut = document.getElementById('barreBoutonsHaut');
+      let panneau = document.getElementById('panneauSaisie');
+      // Position des boutons AVANT le déplacement (pour animer le mouvement).
+      let avant = zoneBoutons ? zoneBoutons.getBoundingClientRect() : null;
+
       let masque = document.body.classList.toggle('panneau-masque');
       let bouton = document.getElementById('boutonMasquer');
       if (bouton) bouton.textContent = masque ? '▶ Afficher' : '◀ Masquer';
-      // Le fond réservé en haut se rétracte aussi : la zone des notes remonte
-      // jusqu'en haut quand on masque, et revient sous les boutons sinon.
-      // (On agit sur le style "top" inline car il est posé par
-      //  ajusterHauteurZoneDeplacement et l'emporte sur le CSS.)
-      let zoneDep = document.getElementById('zoneDeplacement');
-      if (zoneDep) {
-        if (masque) zoneDep.style.top = '0px';
-        else ajusterHauteurZoneDeplacement();
+
+      // Les boutons d'action ne disparaissent plus : quand on masque, on les
+      // déplace dans la barre du haut (à côté de "Masquer") ; quand on affiche,
+      // on les remet à leur place, à la fin du panneau. Le bouton "Ajouter la
+      // note", lui, reste dans le panneau (donc caché) et ne bouge pas.
+      if (zoneBoutons && barreHaut && panneau) {
+        zoneBoutons.style.transition = '';   // efface une éventuelle animation précédente
+        zoneBoutons.style.transform = '';
+        if (masque) barreHaut.appendChild(zoneBoutons);
+        else panneau.appendChild(zoneBoutons);
+        // La zone des notes se cale sous la position FINALE des boutons.
+        ajusterHauteurZoneDeplacement();
+
+        // Animation "FLIP" (uniquement en masquant) : les boutons MONTENT tout
+        // droit depuis leur ancienne hauteur jusqu'à la barre du haut. On
+        // n'anime QUE la verticale : l'alignement horizontal change (centré
+        // dans le panneau → à gauche dans la barre), donc animer l'horizontale
+        // donnerait un décalage trompeur.
+        if (avant && masque) {
+          let apres = zoneBoutons.getBoundingClientRect();
+          let dy = avant.top - apres.top;
+          zoneBoutons.style.transition = 'none';
+          zoneBoutons.style.transform = 'translateY(' + dy + 'px)';
+          zoneBoutons.getBoundingClientRect();   // force la prise en compte du point de départ
+          zoneBoutons.style.transition = 'transform 0.3s ease';
+          zoneBoutons.style.transform = 'translateY(0)';
+          setTimeout(function() {
+            zoneBoutons.style.transition = '';
+            zoneBoutons.style.transform = '';
+          }, 320);
+        }
+      } else {
+        ajusterHauteurZoneDeplacement();
       }
     }
 
