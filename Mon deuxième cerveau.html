@@ -44,6 +44,11 @@
     }
 
     h1 { font-size: 26px; }
+    /* Titre principal modifiable : on le souligne légèrement au survol et on
+       met un cadre quand on l'édite, pour montrer qu'il est éditable. */
+    #titrePrincipal { display: inline-block; border-radius: 6px; padding: 2px 6px; cursor: text; outline: none; }
+    #titrePrincipal:hover { background: rgba(0, 0, 0, 0.05); }
+    #titrePrincipal:focus { background: #fff; box-shadow: 0 0 0 2px #1e88e5; }
 
     /* La zone pour écrire une nouvelle note */
     input, textarea {
@@ -441,7 +446,7 @@
   <!-- Panneau (titre + saisie + boutons) qui peut se rétracter vers la gauche -->
   <div id="panneauSaisie">
 
-  <h1>Mes notes</h1>
+  <h1 id="titrePrincipal" contenteditable="true" spellcheck="false" title="Clique pour modifier le titre">Mes notes</h1>
   <p>Écris une idée par note. Garde-les courtes !</p>
   <p id="compteurNotes">Notes : 0</p>
 
@@ -536,6 +541,7 @@
     // Clés pour la liste des onglets et l'onglet actif (communes à tous les onglets)
     const CLE_ONGLETS = "mon-deuxieme-cerveau-onglets" + SUFFIXE_PARTAGE;
     const CLE_ONGLET_ACTIF = "mon-deuxieme-cerveau-onglet-actif" + SUFFIXE_PARTAGE;
+    const CLE_TITRE = "mon-deuxieme-cerveau-titre" + SUFFIXE_PARTAGE;  // titre principal modifiable
     let onglets = [];          // [{ id, nom, cle }]  (cle = suffixe de stockage)
     let ongletActifId = null;
     let ongletEnEdition = null; // id de l'onglet dont on modifie le nom (champ éditable)
@@ -1237,10 +1243,28 @@
     }
     // ============================================================================
 
+    // Titre principal modifiable : on le charge et on enregistre les changements.
+    function initTitrePrincipal() {
+      let h = document.getElementById('titrePrincipal');
+      if (!h) return;
+      let t = localStorage.getItem(CLE_TITRE);
+      if (t !== null && t.trim() !== '') h.textContent = t;
+      h.addEventListener('blur', function() {
+        let v = h.textContent.trim();
+        if (v === '') { v = 'Mes notes'; h.textContent = v; }  // jamais de titre vide
+        localStorage.setItem(CLE_TITRE, v);
+      });
+      h.addEventListener('keydown', function(e) {
+        // Entrée valide le titre (pas de retour à la ligne dans un titre)
+        if (e.key === 'Enter') { e.preventDefault(); h.blur(); }
+      });
+    }
+
     installerNotesPartageesUneFois();   // 1re ouverture d'un fichier partagé : on sème les notes
     chargerOnglets();                   // détermine l'onglet actif et les clés de stockage
     afficherBarreOnglets();
     chargerEtAfficherOngletActif();     // charge et affiche les notes de l'onglet actif
+    initTitrePrincipal();               // titre principal éditable
     // Démarrer l'auto-téléchargement toutes les 10 minutes (600000 ms)
     var autoDownloadInterval = setInterval(function() { telechargerNotes(true); }, 10 * 60 * 1000);
 
@@ -2131,9 +2155,12 @@
       try {
         // On enregistre AUSSI les positions, les liens et l'état réduit, pour
         // que la disposition des notes soit conservée — même sur un autre appareil.
+        let elTitre = document.getElementById('titrePrincipal');
+        let titrePrincipal = elTitre ? elTitre.textContent.trim() : '';
         let donneesExport = {
           format: "mon-deuxieme-cerveau",
           version: 1,
+          titre: titrePrincipal || 'Mes notes',
           notes: mesNotes,
           positions: positionsNotes,
           liens: liens,
@@ -2260,6 +2287,12 @@
           positionsNotes = data.positions || {};
           liens = Array.isArray(data.liens) ? data.liens : [];
           notesReduites = data.reduites || {};
+          // …et le titre principal, s'il est présent dans le fichier.
+          if (typeof data.titre === 'string' && data.titre.trim() !== '') {
+            let h = document.getElementById('titrePrincipal');
+            if (h) h.textContent = data.titre.trim();
+            localStorage.setItem(CLE_TITRE, data.titre.trim());
+          }
         } else {
           alert("❌ Le fichier n'est pas au bon format.");
           return;
