@@ -532,7 +532,7 @@
              style="width: 56px; margin: 0; text-align: center; font-size: 14px; padding: 6px;">
       <span style="font-size: 14px;">%</span>
       <button onclick="changerZoom(0.1)" title="Rezoomer" style="padding: 6px 12px; background: #555;">➕</button>
-      <button onclick="reinitialiserVue()" title="Zoom à 100%, vue recentrée, notes au milieu" style="padding: 6px 12px; background: #2e8b57;">⟲ Réinitialiser</button>
+      <button onclick="reinitialiserVue()" title="Zoom à 100% et vue recentrée sur tes notes (sans les déplacer)" style="padding: 6px 12px; background: #2e8b57;">⟲ Recentrer la vue</button>
     </span>
   </div>
 
@@ -1499,18 +1499,33 @@
 
     // Remet tout à zéro : zoom à 100%, notes en cascade au centre, caméra centrée.
     function reinitialiserVue() {
-      zoomNotes = 1;                       // zoom à 100%
+      // NON DESTRUCTIF : on remet le zoom à 100 % et on RECENTRE la vue sur les
+      // notes existantes, SANS jamais changer leur position.
+      zoomNotes = 1;
       let c = tailleCanevas();
-      positionsNotes = {};
-      for (let i = 0; i < mesNotes.length; i++) {
-        positionsNotes[i] = positionCascade(i);   // notes en cascade
+      let cles = Object.keys(positionsNotes).filter(function(k) {
+        return positionsNotes[k] && Number(k) < mesNotes.length;
+      });
+      if (cles.length > 0) {
+        // On calcule le rectangle qui englobe toutes les notes, puis on centre dessus.
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        cles.forEach(function(k) {
+          let p = positionsNotes[k];
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x + 250);   // ~ largeur d'une note
+          maxY = Math.max(maxY, p.y + 140);   // ~ hauteur d'une note
+        });
+        let centreX = (minX + maxX) / 2;
+        let centreY = (minY + maxY) / 2;
+        panX = c.vueLargeur / 2 - centreX * zoomNotes;
+        panY = c.vueHauteur / 2 - centreY * zoomNotes;
+      } else {
+        // Aucune note : on centre simplement sur le milieu du canevas.
+        panX = c.vueLargeur / 2 - (c.largeur / 2) * zoomNotes;
+        panY = c.vueHauteur / 2 - (c.hauteur / 2) * zoomNotes;
       }
-      // On centre la caméra sur le centre du canevas (là où commence la cascade)
-      panX = c.vueLargeur / 2 - (c.largeur / 2) * zoomNotes;
-      panY = c.vueHauteur / 2 - (c.hauteur / 2) * zoomNotes;
-      afficherLesNotes();             // on réaffiche les notes à leur nouvelle place
-      sauvegarderNotesEnStockage();   // on garde ces positions
-      appliquerZoom();                // on applique le zoom + le déplacement
+      appliquerZoom();   // applique le zoom + la position, et les enregistre
     }
 
     function ajusterHauteurZoneDeplacement() {
