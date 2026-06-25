@@ -46,9 +46,12 @@
     h1 { font-size: 26px; }
     /* Titre principal modifiable : on le souligne légèrement au survol et on
        met un cadre quand on l'édite, pour montrer qu'il est éditable. */
-    #titrePrincipal { display: inline-block; border-radius: 6px; padding: 2px 6px; cursor: text; outline: none; }
+    #titrePrincipal { display: inline-block; border-radius: 6px; padding: 2px 6px; cursor: text; outline: none; margin-bottom: 2px; }
     #titrePrincipal:hover { background: rgba(0, 0, 0, 0.05); }
     #titrePrincipal:focus { background: #fff; box-shadow: 0 0 0 2px #1e88e5; }
+    #descriptionPrincipale { display: block; width: fit-content; border-radius: 6px; padding: 2px 6px; cursor: text; outline: none; margin-top: 2px; }
+    #descriptionPrincipale:hover { background: rgba(0, 0, 0, 0.05); }
+    #descriptionPrincipale:focus { background: #fff; box-shadow: 0 0 0 2px #1e88e5; }
 
     /* La zone pour écrire une nouvelle note */
     input, textarea {
@@ -549,7 +552,7 @@
   <div id="panneauSaisie">
 
   <h1 id="titrePrincipal" contenteditable="true" spellcheck="false" title="Clique pour modifier le titre">Mes notes</h1>
-  <p>Écris une idée par note. Garde-les courtes !</p>
+  <p id="descriptionPrincipale" contenteditable="true" spellcheck="false" title="Clique pour modifier la description">Écris une idée par note. Garde-les courtes !</p>
   <p id="compteurNotes">Notes : 0 <span id="indicateurSauvegarde" title="Tes notes sont enregistrées dans le navigateur"></span></p>
 
   <!-- Barre d'onglets : chaque onglet a son propre jeu de notes -->
@@ -657,6 +660,7 @@
     const CLE_ONGLETS = "mon-deuxieme-cerveau-onglets" + SUFFIXE_PARTAGE;
     const CLE_ONGLET_ACTIF = "mon-deuxieme-cerveau-onglet-actif" + SUFFIXE_PARTAGE;
     const CLE_TITRE = "mon-deuxieme-cerveau-titre" + SUFFIXE_PARTAGE;  // titre principal modifiable
+    const CLE_DESCRIPTION = "mon-deuxieme-cerveau-description" + SUFFIXE_PARTAGE;  // description modifiable
     let onglets = [];          // [{ id, nom, cle }]  (cle = suffixe de stockage)
     let ongletActifId = null;
     let ongletEnEdition = null; // id de l'onglet dont on modifie le nom (champ éditable)
@@ -1567,6 +1571,27 @@
         // Entrée valide le titre (pas de retour à la ligne dans un titre)
         if (e.key === 'Enter') { e.preventDefault(); h.blur(); }
       });
+      // Un titre long fait descendre les boutons : on recale la zone des notes.
+      h.addEventListener('input', ajusterHauteurZoneDeplacement);
+    }
+
+    // Description modifiable : même principe que le titre.
+    function initDescriptionPrincipale() {
+      let p = document.getElementById('descriptionPrincipale');
+      if (!p) return;
+      let d = localStorage.getItem(CLE_DESCRIPTION);
+      if (d !== null) p.textContent = d;   // on autorise une description vide
+      p.addEventListener('blur', function() {
+        localStorage.setItem(CLE_DESCRIPTION, p.textContent.trim());
+      });
+      p.addEventListener('keydown', function(e) {
+        // Entrée valide la description (pas de retour à la ligne)
+        if (e.key === 'Enter') { e.preventDefault(); p.blur(); }
+      });
+      // Si la description s'allonge (texte long), les boutons descendent : on
+      // recale aussitôt le haut de la zone des notes pour qu'elle reste SOUS
+      // les boutons (sinon les notes apparaîtraient derrière).
+      p.addEventListener('input', ajusterHauteurZoneDeplacement);
     }
 
     installerNotesPartageesUneFois();   // 1re ouverture d'un fichier partagé : on sème les notes
@@ -1574,6 +1599,7 @@
     afficherBarreOnglets();
     chargerEtAfficherOngletActif();     // charge et affiche les notes de l'onglet actif
     initTitrePrincipal();               // titre principal éditable
+    initDescriptionPrincipale();        // description éditable
 
     // Entrée dans le champ "Titre" → ajoute la note directement.
     // (Dans le contenu, qui est un textarea, Entrée sert à aller à la ligne.)
@@ -2581,10 +2607,13 @@
         // que la disposition des notes soit conservée — même sur un autre appareil.
         let elTitre = document.getElementById('titrePrincipal');
         let titrePrincipal = elTitre ? elTitre.textContent.trim() : '';
+        let elDescription = document.getElementById('descriptionPrincipale');
+        let descriptionPrincipale = elDescription ? elDescription.textContent.trim() : '';
         let donneesExport = {
           format: "mon-deuxieme-cerveau",
           version: 1,
           titre: titrePrincipal || 'Mes notes',
+          description: descriptionPrincipale,
           notes: mesNotes,
           positions: positionsNotes,
           liens: liens,
@@ -2716,6 +2745,12 @@
             let h = document.getElementById('titrePrincipal');
             if (h) h.textContent = data.titre.trim();
             localStorage.setItem(CLE_TITRE, data.titre.trim());
+          }
+          // …et la description, si elle est présente dans le fichier.
+          if (typeof data.description === 'string') {
+            let pd = document.getElementById('descriptionPrincipale');
+            if (pd) pd.textContent = data.description.trim();
+            localStorage.setItem(CLE_DESCRIPTION, data.description.trim());
           }
         } else {
           afficherToast("❌ Le fichier n'est pas au bon format.", 'erreur');
