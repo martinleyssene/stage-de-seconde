@@ -475,6 +475,7 @@
     <button id="boutonRelier" onclick="basculerModeRelier()" style="background: #6b3fa0;">🔗 Relier</button>
     <button id="boutonSupprimerLiens" onclick="basculerModeSupprimerLiens(event)" style="background: #888;">🗑️ Supprimer liens</button>
     <button id="boutonSelection" onclick="basculerModeSelection()" title="Sélectionner plusieurs notes en traçant un rectangle, puis les déplacer ensemble" style="background: #1e88e5;">⬚ Sélection</button>
+    <button id="boutonAnnuler" onclick="annulerSuppression()" title="Annuler la dernière suppression de notes (Ctrl/Cmd+Z)" style="background: #795548; display: none;">↩️ Annuler</button>
     <span id="spinner" style="display: none;" class="spinner" aria-hidden="true"></span>
     <input type="file" id="fichierNotes" accept=".json" style="display: none;">
 
@@ -1004,6 +1005,50 @@
       positionsNotes = nouvellesPositions;
       notesReduites = nouvellesReduites;
       liens = nouveauxLiens;
+    }
+
+    // ----- ANNULER UNE SUPPRESSION (jusqu'aux 3 dernières) -----
+    // Avant chaque suppression de notes, on garde une "photo" de l'état complet
+    // (notes, positions, liens, état réduit). C'est juste une variable en
+    // mémoire : aucun fichier n'est créé. "Annuler" remet la dernière photo.
+    let historiqueSuppressions = [];   // pile des états, 3 maximum
+
+    function memoriserAvantSuppression() {
+      historiqueSuppressions.push({
+        notes: JSON.parse(JSON.stringify(mesNotes)),
+        positions: JSON.parse(JSON.stringify(positionsNotes)),
+        liens: JSON.parse(JSON.stringify(liens)),
+        reduites: JSON.parse(JSON.stringify(notesReduites))
+      });
+      if (historiqueSuppressions.length > 3) historiqueSuppressions.shift();  // on garde les 3 dernières
+      majBoutonAnnuler();
+    }
+
+    function annulerSuppression() {
+      if (historiqueSuppressions.length === 0) return;
+      let etat = historiqueSuppressions.pop();
+      mesNotes = etat.notes;
+      positionsNotes = etat.positions;
+      liens = etat.liens;
+      notesReduites = etat.reduites;
+      notesSelectionnees = [];
+      indexEnEdition = null;
+      sauvegarderNotesEnStockage();
+      afficherLesNotes();
+      majBoutonAnnuler();
+    }
+
+    // Affiche/masque le bouton "Annuler" selon qu'il y a des suppressions à annuler.
+    function majBoutonAnnuler() {
+      let b = document.getElementById('boutonAnnuler');
+      if (!b) return;
+      if (historiqueSuppressions.length > 0) {
+        b.style.display = '';
+        b.textContent = '↩️ Annuler' + (historiqueSuppressions.length > 1
+          ? ' (' + historiqueSuppressions.length + ')' : '');
+      } else {
+        b.style.display = 'none';
+      }
     }
 
     // Dessine tous les traits reliant les notes, du centre de l'une au centre de l'autre.
@@ -1647,16 +1692,10 @@
     function supprimerNote(index, event) {
       event.stopPropagation();  // Empêcher le click de remonter à la note
       if (confirm("Supprimer cette note ?")) {
-        mesNotes.splice(index, 1);
-        delete notesReduites[index];  // Nettoyer l'état réduit
-        // Supprimer les traits touchant cette note, puis décaler les index plus grands
-        liens = liens.filter(function(l) { return l.a !== index && l.b !== index; });
-        liens.forEach(function(l) {
-          if (l.a > index) l.a--;
-          if (l.b > index) l.b--;
-        });
-        sauvegarderNotesEnStockage();
+        memoriserAvantSuppression();          // pour pouvoir annuler
+        supprimerNotesParIndices([index]);    // réindexe positions, liens, état réduit
         if (indexEnEdition === index) { indexEnEdition = null; }
+        sauvegarderNotesEnStockage();
         afficherLesNotes();
       }
     }
@@ -1784,6 +1823,7 @@
         let corb = document.getElementById('corbeille');
         if (corb) corb.classList.remove('corbeille-survol');
         if (confirme) {
+          memoriserAvantSuppression();   // pour pouvoir annuler
           supprimerNotesParIndices(aSupprimer);
           notesSelectionnees = [];
           indexEnEdition = null;
@@ -2032,6 +2072,21 @@
       } else if (event.key === '+' || event.key === '=' || event.key === 'Add' || event.code === 'NumpadAdd') {
         changerZoom(0.1);    // rezoomer
         event.preventDefault();
+      }
+    });
+
+    // Ctrl+Z (ou Cmd+Z) → annuler la dernière suppression de notes.
+    // Exception : si on écrit dans un champ ou dans le titre éditable, on laisse
+    // le navigateur faire SON annulation de texte habituelle.
+    window.addEventListener('keydown', function(event) {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey &&
+          (event.key === 'z' || event.key === 'Z')) {
+        let actif = document.activeElement;
+        if (actif && (actif.tagName === 'INPUT' || actif.tagName === 'TEXTAREA' || actif.isContentEditable)) return;
+        if (historiqueSuppressions.length > 0) {
+          annulerSuppression();
+          event.preventDefault();
+        }
       }
     });
 
