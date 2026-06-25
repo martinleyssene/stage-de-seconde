@@ -350,9 +350,15 @@
     }
     #indicateurSauvegarde.indicateur-actif { opacity: 1; }
 
-    /* ----- Bouton "couleur" d'une note ----- */
-    .button-couleur { background: #f4b740; }
+    /* ----- Bouton "couleur" d'une note (à DROITE de la note) ----- */
+    .button-couleur {
+      position: absolute;
+      right: -48px;
+      top: 12px;
+      background: #f4b740;
+    }
     .button-couleur:hover { background: #e0a52f; }
+    .note.reduit .button-couleur { display: none; }   /* caché en mode réduit, comme les autres actions */
 
     /* ----- Palette de couleurs ----- */
     #paletteCouleurs {
@@ -948,12 +954,31 @@
         d.onclick = function(e) { e.stopPropagation(); choisirCouleurNote(c.val); };
         pal.appendChild(d);
       });
-      // On place la palette près du clic, sans déborder de l'écran.
-      let x = (event.touches ? event.touches[0].clientX : event.clientX);
-      let y = (event.touches ? event.touches[0].clientY : event.clientY);
-      pal.style.left = Math.min(x, window.innerWidth - 230) + 'px';
-      pal.style.top = Math.min(y, window.innerHeight - 60) + 'px';
+      // On affiche d'abord (pour pouvoir mesurer la palette), puis on la place
+      // À DROITE de la note, centrée verticalement, avec un petit écart.
       pal.style.display = 'flex';
+      // On retrouve la note en remontant depuis le bouton 🎨 cliqué (fiable),
+      // avec repli sur la recherche par index si besoin.
+      let noteEl = (event.target && event.target.closest) ? event.target.closest('.note') : null;
+      if (!noteEl) noteEl = document.querySelector('.note[data-index="' + index + '"]');
+      if (noteEl) {
+        let r = noteEl.getBoundingClientRect();
+        let pr = pal.getBoundingClientRect();
+        let ecart = 10;
+        let gauche = r.right + ecart;                 // à droite de la note
+        // Si ça déborde à droite de l'écran, on bascule à gauche de la note.
+        if (gauche + pr.width > window.innerWidth - 4) gauche = r.left - ecart - pr.width;
+        let haut = r.top + r.height / 2 - pr.height / 2;   // centré sur le côté droit
+        haut = Math.max(4, Math.min(haut, window.innerHeight - pr.height - 4));
+        pal.style.left = Math.max(4, gauche) + 'px';
+        pal.style.top = haut + 'px';
+      } else {
+        // Repli : près du clic.
+        let x = (event.touches ? event.touches[0].clientX : event.clientX);
+        let y = (event.touches ? event.touches[0].clientY : event.clientY);
+        pal.style.left = Math.min(x, window.innerWidth - 230) + 'px';
+        pal.style.top = Math.min(y, window.innerHeight - 60) + 'px';
+      }
     }
 
     function choisirCouleurNote(val) {
@@ -1793,9 +1818,9 @@
               '</div>' +
               '<div class="note-actions">' +
                 '<button class="button-action button-edit" onclick="demarrerModification(' + i + ', event)">✏️</button>' +
-                '<button class="button-action button-couleur" onclick="ouvrirPalette(' + i + ', event)" title="Couleur de la note">🎨</button>' +
                 '<button class="button-action button-delete" onclick="supprimerNote(' + i + ', event)">❌</button>' +
               '</div>' +
+              '<button class="button-action button-couleur" onclick="ouvrirPalette(' + i + ', event)" title="Couleur de la note">🎨</button>' +
               '<button class="button-image" onclick="importerImages(' + i + ', event)" title="Ajouter une ou des images">' + iconePaysage + '</button>' +
             '</div>';
         }
