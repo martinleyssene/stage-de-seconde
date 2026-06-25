@@ -671,6 +671,22 @@
       localStorage.setItem(CLE_STOCKAGE + "-positions", JSON.stringify(positionsNotes));
       localStorage.setItem(CLE_STOCKAGE + "-liens", JSON.stringify(liens));
       localStorage.setItem(CLE_STOCKAGE + "-reduites", JSON.stringify(notesReduites));
+      // … et on met à jour le fichier (de façon différée, voir ci-dessous).
+      planifierSauvegardeFichier();
+    }
+
+    // Met à jour le FICHIER de notes après chaque changement, mais de façon
+    // DIFFÉRÉE : on attend ~1,5 s après la dernière modification pour écrire une
+    // seule fois (évite d'écrire à chaque micro-action pendant un déplacement).
+    // En mode silencieux : sur le site (https) ça réécrit le MÊME fichier ; en
+    // local (file://) ça ne fait rien, donc aucun nouveau fichier n'est créé.
+    let minuteurSauvegardeFichier = null;
+    function planifierSauvegardeFichier() {
+      if (minuteurSauvegardeFichier) clearTimeout(minuteurSauvegardeFichier);
+      minuteurSauvegardeFichier = setTimeout(function() {
+        minuteurSauvegardeFichier = null;
+        telechargerNotes(true);   // true = silencieux (pas de fenêtre)
+      }, 1500);
     }
 
     // Donne à la note "index" la profondeur la plus élevée pour qu'elle
@@ -1251,11 +1267,9 @@
       document.getElementById("champContenu").value = "";
 
       // 6) On redessine la liste à l'écran (recette juste en dessous).
+      //    (La sauvegarde du fichier est gérée automatiquement par
+      //     sauvegarderNotesEnStockage, appelée à l'étape 4.)
       afficherLesNotes();
-
-      // 7) Par sécurité, on enregistre aussi dans le fichier (mode silencieux :
-      //    réécrit le fichier mémorisé sur Chrome/Edge, sans ouvrir de fenêtre).
-      telechargerNotes(true);
     }
 
 
@@ -1902,7 +1916,9 @@
     // "estAuto" = true quand c'est la sauvegarde automatique (toutes les 10 min).
     // Dans ce cas on ne dérange JAMAIS l'utilisateur avec une fenêtre.
     async function telechargerNotes(estAuto) {
-      const spinner = document.getElementById('spinner');
+      // En sauvegarde automatique (silencieuse), on n'affiche pas l'indicateur
+      // de chargement, pour ne pas le faire clignoter à chaque modification.
+      const spinner = estAuto ? null : document.getElementById('spinner');
       if (spinner) spinner.style.display = 'inline-block';
       // Permettre au navigateur d'afficher le spinner avant de bloquer potentiellement le thread
       await new Promise(requestAnimationFrame);
@@ -1922,45 +1938,54 @@
         // CAS 1 : le navigateur sait écrire directement dans un fichier
         // (Chrome, Edge...). On réutilise toujours le MÊME fichier.
         if (window.showSaveFilePicker) {
-          // Si on ne connaît pas encore le fichier, on tente de le récupérer
-          // depuis la dernière fois (IndexedDB).
-          if (!fichierNotesEnregistre) {
-            fichierNotesEnregistre = await recupererFichierMemorise();
-          }
-
-          // On a un fichier mémorisé : on vérifie la permission d'écrire.
-          if (fichierNotesEnregistre) {
-            let ok = await verifierPermissionFichier(fichierNotesEnregistre, !estAuto);
-            if (!ok) {
-              if (estAuto) return;            // auto-save : on ne dérange pas
-              fichierNotesEnregistre = null;  // sinon on rechoisira un fichier
+          try {
+            // Si on ne connaît pas encore le fichier, on tente de le récupérer
+            // depuis la dernière fois (IndexedDB).
+            if (!fichierNotesEnregistre) {
+              fichierNotesEnregistre = await recupererFichierMemorise();
             }
-          }
 
-          // Toujours pas de fichier connu : on demande où enregistrer
-          // (sauf en auto-save, où on ne montre aucune fenêtre).
-          if (!fichierNotesEnregistre) {
-            if (estAuto) return;
-            fichierNotesEnregistre = await window.showSaveFilePicker({
-              suggestedName: "mes-notes.json",
-              types: [{
-                description: "Fichier de notes",
-                accept: { "application/json": [".json"] }
-              }]
-            });
-            // On le mémorise pour les prochaines ouvertures de la page.
-            await memoriserFichier(fichierNotesEnregistre);
-          }
+            // On a un fichier mémorisé : on vérifie la permission d'écrire.
+            if (fichierNotesEnregistre) {
+              let ok = await verifierPermissionFichier(fichierNotesEnregistre, !estAuto);
+              if (!ok) {
+                if (estAuto) return;            // auto-save : on ne dérange pas
+                fichierNotesEnregistre = null;  // sinon on rechoisira un fichier
+              }
+            }
 
-          // On écrit (ou réécrit) par-dessus le fichier déjà choisi.
-          let flux = await fichierNotesEnregistre.createWritable();
-          await flux.write(contenuJSON);
-          await flux.close();
-          return;
+            // Toujours pas de fichier connu : on demande où enregistrer
+            // (sauf en auto-save, où on ne montre aucune fenêtre).
+            if (!fichierNotesEnregistre) {
+              if (estAuto) return;
+              fichierNotesEnregistre = await window.showSaveFilePicker({
+                suggestedName: "mes-notes.json",
+                types: [{
+                  description: "Fichier de notes",
+                  accept: { "application/json": [".json"] }
+                }]
+              });
+              // On le mémorise pour les prochaines ouvertures de la page.
+              await memoriserFichier(fichierNotesEnregistre);
+            }
+
+            // On écrit (ou réécrit) par-dessus le fichier déjà choisi.
+            let flux = await fichierNotesEnregistre.createWritable();
+            await flux.write(contenuJSON);
+            await flux.close();
+            return;
+          } catch (e) {
+            if (e && e.name === 'AbortError') return;  // l'utilisateur a fermé la fenêtre : on n'insiste pas
+            // Cette API échoue notamment quand la page est ouverte en file://
+            // (double-clic sur le fichier). Dans ce cas, on NE bloque pas : on
+            // bascule sur le téléchargement classique juste en dessous.
+            console.warn('Enregistrement direct impossible, repli sur téléchargement classique :', e);
+            fichierNotesEnregistre = null;
+          }
         }
 
-        // CAS 2 : navigateur qui ne supporte pas l'API (Firefox, Safari...).
-        // On retombe sur le téléchargement classique.
+        // CAS 2 : navigateur sans cette API (Firefox, Safari…) OU repli après
+        // un échec du CAS 1 (ex. page ouverte en file://).
         if (estAuto) return; // pas de fenêtre intempestive en auto-save
         let blob = new Blob([contenuJSON], { type: "application/json" });
         let url = URL.createObjectURL(blob);
@@ -2014,6 +2039,7 @@
     function appliquerNotesImportees(texte) {
       try {
         let data = JSON.parse(texte);
+        let ancienFormat = false;
         if (Array.isArray(data)) {
           // Ancien format : une simple liste de notes (sans positions).
           // On repart d'une disposition propre (les notes seront recentrées).
@@ -2021,6 +2047,7 @@
           positionsNotes = {};
           liens = [];
           notesReduites = {};
+          ancienFormat = true;
         } else if (data && Array.isArray(data.notes)) {
           // Nouveau format : on restaure aussi la disposition (positions, liens…).
           mesNotes = data.notes;
@@ -2035,7 +2062,11 @@
         // Ne recentre QUE si le fichier n'avait pas de positions enregistrées.
         recentrerNotesAuCentre(false);
         afficherLesNotes();
-        alert("✅ Notes chargées avec succès ! (" + mesNotes.length + " note(s))");
+        if (ancienFormat) {
+          alert("✅ " + mesNotes.length + " note(s) chargée(s).\n\n⚠️ Ce fichier est à l'ancien format : il ne contenait NI les positions NI les liens (les notes ont donc été replacées automatiquement).\nPour conserver la disposition, re-télécharge tes notes depuis la version à jour de l'application, puis recharge CE nouveau fichier.");
+        } else {
+          alert("✅ Notes chargées avec succès ! (" + mesNotes.length + " note(s), positions et liens restaurés)");
+        }
       } catch (erreur) {
         alert("❌ Erreur en lisant le fichier : " + erreur.message);
       }
