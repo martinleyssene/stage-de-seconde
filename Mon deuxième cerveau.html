@@ -827,6 +827,26 @@
       }, ms);
     }
 
+    // ====================== FRONTIÈRE DE STOCKAGE ===========================
+    // Clean architecture : SEULES ces deux fonctions parlent directement à
+    // localStorage pour les données au format JSON. Tout le reste passe par
+    // elles — si on changeait un jour de mode de stockage, seul ce bloc bougerait.
+    // Le format produit est IDENTIQUE à l'historique (JSON.stringify/parse),
+    // donc 100 % rétrocompatible avec les données déjà enregistrées.
+    // (Les clés "texte brut" comme le zoom ou l'id d'onglet actif restent en
+    //  accès direct : elles ne sont pas du JSON.)
+    function lireJSON(cle, valeurParDefaut) {
+      let brut;
+      try { brut = localStorage.getItem(cle); } catch (e) { return valeurParDefaut; }
+      if (brut === null) return valeurParDefaut;       // clé absente
+      try { return JSON.parse(brut); } catch (e) { return valeurParDefaut; }  // contenu illisible
+    }
+    function ecrireJSON(cle, valeur) {
+      // Peut lever une exception si le quota est dépassé : c'est à l'appelant
+      // de la gérer (voir sauvegarderNotesEnStockage).
+      localStorage.setItem(cle, JSON.stringify(valeur));
+    }
+
     // On charge automatiquement les notes sauvegardées au démarrage
     // Fichier PARTAGÉ : à la TOUTE PREMIÈRE ouverture (rien encore en stockage
     // pour ce fichier), on installe les notes intégrées dans le stockage local.
@@ -836,50 +856,21 @@
       let p = window.__NOTES_PARTAGEES__;
       if (!p) return;
       if (localStorage.getItem(CLE_STOCKAGE) !== null) return;  // déjà ouvert ici
-      localStorage.setItem(CLE_STOCKAGE, JSON.stringify(p.notes || []));
-      localStorage.setItem(CLE_STOCKAGE + "-positions", JSON.stringify(p.positions || {}));
-      localStorage.setItem(CLE_STOCKAGE + "-liens", JSON.stringify(p.liens || []));
-      localStorage.setItem(CLE_STOCKAGE + "-reduites", JSON.stringify(p.reduites || {}));
-      if (p.zoom) localStorage.setItem(CLE_ZOOM, p.zoom);
-      if (p.pan) localStorage.setItem(CLE_PAN, JSON.stringify(p.pan));
+      ecrireJSON(CLE_STOCKAGE, p.notes || []);
+      ecrireJSON(CLE_STOCKAGE + "-positions", p.positions || {});
+      ecrireJSON(CLE_STOCKAGE + "-liens", p.liens || []);
+      ecrireJSON(CLE_STOCKAGE + "-reduites", p.reduites || {});
+      if (p.zoom) localStorage.setItem(CLE_ZOOM, p.zoom);   // zoom = nombre brut (pas du JSON)
+      if (p.pan) ecrireJSON(CLE_PAN, p.pan);
     }
 
     function chargerNotesDepuisStockage() {
-      let notesSauvegardees = localStorage.getItem(CLE_STOCKAGE);
-      if (notesSauvegardees) {
-        try {
-          mesNotes = JSON.parse(notesSauvegardees);
-        } catch (e) {
-          mesNotes = [];
-        }
-      }
-      // Charger les positions aussi (mais on recentre au démarrage)
-      let positionsSauvegardees = localStorage.getItem(CLE_STOCKAGE + "-positions");
-      if (positionsSauvegardees) {
-        try {
-          positionsNotes = JSON.parse(positionsSauvegardees);
-        } catch (e) {
-          positionsNotes = {};
-        }
-      }
-      // Charger les liens entre notes
-      let liensSauvegardes = localStorage.getItem(CLE_STOCKAGE + "-liens");
-      if (liensSauvegardes) {
-        try {
-          liens = JSON.parse(liensSauvegardes);
-        } catch (e) {
-          liens = [];
-        }
-      }
-      // Charger l'état "réduit" de chaque note
-      let reduitesSauvegardees = localStorage.getItem(CLE_STOCKAGE + "-reduites");
-      if (reduitesSauvegardees) {
-        try {
-          notesReduites = JSON.parse(reduitesSauvegardees);
-        } catch (e) {
-          notesReduites = {};
-        }
-      }
+      // Lecture via la frontière de stockage. Si une clé est absente ou illisible,
+      // on garde la valeur déjà en mémoire (l'appelant l'a remise à vide au besoin).
+      mesNotes       = lireJSON(CLE_STOCKAGE, mesNotes);
+      positionsNotes = lireJSON(CLE_STOCKAGE + "-positions", positionsNotes);  // on recentre au démarrage
+      liens          = lireJSON(CLE_STOCKAGE + "-liens", liens);
+      notesReduites  = lireJSON(CLE_STOCKAGE + "-reduites", notesReduites);
     }
 
     function recentrerNotesAuCentre(force = false) {
@@ -941,10 +932,10 @@
 
     function sauvegarderNotesEnStockage() {
       try {
-        localStorage.setItem(CLE_STOCKAGE, JSON.stringify(mesNotes));
-        localStorage.setItem(CLE_STOCKAGE + "-positions", JSON.stringify(positionsNotes));
-        localStorage.setItem(CLE_STOCKAGE + "-liens", JSON.stringify(liens));
-        localStorage.setItem(CLE_STOCKAGE + "-reduites", JSON.stringify(notesReduites));
+        ecrireJSON(CLE_STOCKAGE, mesNotes);
+        ecrireJSON(CLE_STOCKAGE + "-positions", positionsNotes);
+        ecrireJSON(CLE_STOCKAGE + "-liens", liens);
+        ecrireJSON(CLE_STOCKAGE + "-reduites", notesReduites);
       } catch (e) {
         // Quota dépassé (souvent des images trop lourdes) : on prévient l'utilisateur.
         afficherToast("⚠️ Stockage du navigateur plein : ta dernière modification n'a peut-être PAS été enregistrée. Télécharge tes notes pour ne rien perdre, et évite les grosses images.", 'erreur', 9000);
@@ -1473,7 +1464,7 @@
 
     // Charge la liste des onglets (ou en crée un par défaut au 1er lancement).
     function chargerOnglets() {
-      try { onglets = JSON.parse(localStorage.getItem(CLE_ONGLETS)); } catch (e) { onglets = null; }
+      onglets = lireJSON(CLE_ONGLETS, null);
       if (!Array.isArray(onglets) || onglets.length === 0) {
         // 1er onglet : suffixe vide => il récupère les notes déjà existantes.
         onglets = [{ id: 'principal', nom: 'Notes 1', cle: '' }];
@@ -1486,8 +1477,8 @@
     }
 
     function sauvegarderOnglets() {
-      localStorage.setItem(CLE_ONGLETS, JSON.stringify(onglets));
-      localStorage.setItem(CLE_ONGLET_ACTIF, ongletActifId);
+      ecrireJSON(CLE_ONGLETS, onglets);
+      localStorage.setItem(CLE_ONGLET_ACTIF, ongletActifId);   // id = texte brut (pas du JSON)
     }
 
     // Recharge en mémoire les notes de l'onglet actif et redessine tout.
@@ -1500,12 +1491,10 @@
       chargerNotesDepuisStockage();
       recentrerNotesAuCentre(false);
       afficherLesNotes();
-      let z = parseFloat(localStorage.getItem(CLE_ZOOM));
+      let z = parseFloat(localStorage.getItem(CLE_ZOOM));   // zoom = nombre brut
       if (!isNaN(z)) zoomNotes = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
-      try {
-        let p = JSON.parse(localStorage.getItem(CLE_PAN));
-        if (p) { panX = p.x || 0; panY = p.y || 0; }
-      } catch (e) {}
+      let p = lireJSON(CLE_PAN, null);
+      if (p) { panX = p.x || 0; panY = p.y || 0; }
       appliquerZoom();
       chargerDescriptionDansChamp();   // chaque onglet a sa propre description
       ajusterHauteurZoneDeplacement();
@@ -1733,8 +1722,8 @@
       // On ne réécrit pas le champ pendant que l'utilisateur est en train d'y taper
       if (label && document.activeElement !== label) label.value = Math.round(zoomNotes * 100);
       try {
-        localStorage.setItem(CLE_ZOOM, zoomNotes);
-        localStorage.setItem(CLE_PAN, JSON.stringify({ x: panX, y: panY }));
+        localStorage.setItem(CLE_ZOOM, zoomNotes);   // zoom = nombre brut
+        ecrireJSON(CLE_PAN, { x: panX, y: panY });
       } catch (e) {}
       dessinerLiens();  // on redessine les traits à la nouvelle taille
     }
@@ -2381,7 +2370,7 @@
       document.body.style.msUserSelect = '';
       document.body.removeEventListener('selectstart', preventSelect);
       // On mémorise la nouvelle position
-      try { localStorage.setItem(CLE_PAN, JSON.stringify({ x: panX, y: panY })); } catch (e) {}
+      try { ecrireJSON(CLE_PAN, { x: panX, y: panY }); } catch (e) {}
     }
 
     // ----- TRACÉ DU RECTANGLE DE SÉLECTION (mode "Sélection") -----
