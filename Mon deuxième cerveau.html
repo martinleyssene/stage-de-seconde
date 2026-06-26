@@ -658,6 +658,10 @@
   </div>
 
 
+  <!-- Logique pure (sécurité + stockage), partagée avec la page de tests.
+       Doit être chargée AVANT le script principal qui s'en sert. -->
+  <script src="logique.js"></script>
+
   <!-- ---------- JS : le cerveau. C'est lui qui fait tout marcher ---------- -->
   <script>
 
@@ -799,14 +803,7 @@
       }
     }
 
-    function escapeHtml(texte) {
-      return texte
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
+    // escapeHtml() est désormais dans logique.js (chargé avant ce script).
 
     // Affiche un petit message (toast) qui apparaît puis disparaît tout seul.
     // type : 'info' (défaut), 'succes', 'erreur', 'attention'.
@@ -827,25 +824,9 @@
       }, ms);
     }
 
-    // ====================== FRONTIÈRE DE STOCKAGE ===========================
-    // Clean architecture : SEULES ces deux fonctions parlent directement à
-    // localStorage pour les données au format JSON. Tout le reste passe par
-    // elles — si on changeait un jour de mode de stockage, seul ce bloc bougerait.
-    // Le format produit est IDENTIQUE à l'historique (JSON.stringify/parse),
-    // donc 100 % rétrocompatible avec les données déjà enregistrées.
-    // (Les clés "texte brut" comme le zoom ou l'id d'onglet actif restent en
-    //  accès direct : elles ne sont pas du JSON.)
-    function lireJSON(cle, valeurParDefaut) {
-      let brut;
-      try { brut = localStorage.getItem(cle); } catch (e) { return valeurParDefaut; }
-      if (brut === null) return valeurParDefaut;       // clé absente
-      try { return JSON.parse(brut); } catch (e) { return valeurParDefaut; }  // contenu illisible
-    }
-    function ecrireJSON(cle, valeur) {
-      // Peut lever une exception si le quota est dépassé : c'est à l'appelant
-      // de la gérer (voir sauvegarderNotesEnStockage).
-      localStorage.setItem(cle, JSON.stringify(valeur));
-    }
+    // FRONTIÈRE DE STOCKAGE : lireJSON() / ecrireJSON() sont désormais dans
+    // logique.js (chargé avant ce script). Ce sont les SEULES fonctions qui
+    // parlent directement à localStorage pour les données au format JSON.
 
     // On charge automatiquement les notes sauvegardées au démarrage
     // Fichier PARTAGÉ : à la TOUTE PREMIÈRE ouverture (rien encore en stockage
@@ -982,12 +963,7 @@
 
     // ----- COULEUR D'UNE NOTE -----
     // Ouvre la petite palette près du clic, pour choisir la couleur de la note.
-    // SÉCURITÉ : ne renvoie une couleur que si elle est inoffensive (les couleurs
-    // peuvent venir d'un fichier .json importé). Sinon, chaîne vide (= ignorée).
-    // Utilisée à la fois pour le fond et pour le texte (DRY).
-    function couleurValidee(c) {
-      return (c && /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([0-9.,%\s/]+\)|[a-zA-Z]+)$/.test(c)) ? c : '';
-    }
+    // couleurValidee() est désormais dans logique.js (chargé avant ce script).
 
     // Construit une section de la palette (un titre + une rangée de pastilles +
     // le sélecteur libre). 'type' vaut 'fond' ou 'texte'. Évite de dupliquer le

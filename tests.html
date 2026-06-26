@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tests — Mon deuxième cerveau</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 760px; margin: 30px auto;
+         padding: 0 18px; color: #222; line-height: 1.5; }
+  h1 { font-size: 22px; }
+  p.intro { color: #666; }
+  #resume { padding: 14px 18px; border-radius: 10px; font-weight: 600; margin: 18px 0; }
+  #resume.ok  { background: #e7f6e7; color: #1b5e20; border: 1px solid #aedcae; }
+  #resume.ko  { background: #fdecea; color: #b71c1c; border: 1px solid #f1a9a0; }
+  .groupe { margin: 22px 0 8px; font-size: 15px; font-weight: 700; color: #333;
+            border-bottom: 2px solid #eee; padding-bottom: 4px; }
+  .cas { display: flex; gap: 10px; align-items: baseline; padding: 5px 0;
+         border-bottom: 1px solid #f2f2f2; font-size: 14px; }
+  .cas .etat { font-weight: 700; flex: 0 0 auto; width: 20px; }
+  .cas.pass .etat { color: #2e7d32; }
+  .cas.fail .etat { color: #c62828; }
+  .cas .nom { flex: 1; }
+  .cas .detail { color: #c62828; font-size: 12.5px; font-family: ui-monospace, monospace; }
+  code { background: #f3f3f3; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>🧪 Tests unitaires</h1>
+  <p class="intro">Cette page teste les fonctions de <code>logique.js</code> (sécurité + stockage).
+     Aucune dépendance : ouvre simplement ce fichier dans un navigateur. Le détail de chaque
+     test s'affiche ci-dessous, et le bandeau indique si <strong>tout passe</strong>.</p>
+
+  <div id="resume">Exécution des tests…</div>
+  <div id="sortie"></div>
+
+  <!-- On charge EXACTEMENT le même fichier que l'application : on teste donc le vrai code. -->
+  <script src="logique.js"></script>
+  <script>
+    // ====== Mini-vérificateur maison (zéro dépendance) =====================
+    let total = 0, reussis = 0;
+    let sortie = document.getElementById('sortie');
+
+    function groupe(titre) {
+      let d = document.createElement('div');
+      d.className = 'groupe';
+      d.textContent = titre;
+      sortie.appendChild(d);
+    }
+
+    // Compare en profondeur via JSON (suffisant pour nos valeurs simples).
+    function memeValeur(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+    function verifier(nom, obtenu, attendu) {
+      total++;
+      let ok = memeValeur(obtenu, attendu);
+      if (ok) reussis++;
+      let d = document.createElement('div');
+      d.className = 'cas ' + (ok ? 'pass' : 'fail');
+      d.innerHTML = '<span class="etat">' + (ok ? '✓' : '✗') + '</span>' +
+                    '<span class="nom">' + nom + '</span>';
+      if (!ok) {
+        let det = document.createElement('span');
+        det.className = 'detail';
+        det.textContent = 'obtenu ' + JSON.stringify(obtenu) + ' ≠ attendu ' + JSON.stringify(attendu);
+        d.appendChild(det);
+      }
+      sortie.appendChild(d);
+    }
+
+    // ====== Les tests ======================================================
+
+    // --- escapeHtml : protège contre l'injection de code (XSS) ---
+    groupe('escapeHtml()');
+    verifier("laisse un texte normal intact", escapeHtml("Bonjour le monde"), "Bonjour le monde");
+    verifier("échappe les chevrons < >", escapeHtml("<b>"), "&lt;b&gt;");
+    verifier("échappe l'esperluette &", escapeHtml("Tom & Jerry"), "Tom &amp; Jerry");
+    verifier('échappe les guillemets "', escapeHtml('dis "oui"'), "dis &quot;oui&quot;");
+    verifier("échappe l'apostrophe '", escapeHtml("l'élève"), "l&#39;élève");
+    verifier("convertit un nombre en texte", escapeHtml(42), "42");
+    verifier("neutralise une charge XSS <img onerror>",
+      escapeHtml('"><img src=x onerror=alert(1)>'),
+      "&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
+
+    // --- couleurValidee : n'accepte que des couleurs inoffensives ---
+    groupe('couleurValidee()');
+    verifier("accepte un hex court #fff", couleurValidee("#fff"), "#fff");
+    verifier("accepte un hex long #ffaa00", couleurValidee("#ffaa00"), "#ffaa00");
+    verifier("accepte rgb(...)", couleurValidee("rgb(255, 0, 0)"), "rgb(255, 0, 0)");
+    verifier("accepte hsl(...)", couleurValidee("hsl(120, 50%, 50%)"), "hsl(120, 50%, 50%)");
+    verifier("accepte un nom simple (red)", couleurValidee("red"), "red");
+    verifier("rejette une injection (chaîne vide)", couleurValidee('red"><img src=x onerror=alert(1)>'), "");
+    verifier("rejette une valeur vide", couleurValidee(""), "");
+    verifier("rejette undefined", couleurValidee(undefined), "");
+    verifier("rejette javascript:alert(1)", couleurValidee("javascript:alert(1)"), "");
+
+    // --- lireJSON / ecrireJSON : frontière de stockage ---
+    groupe('lireJSON() / ecrireJSON()');
+    // On utilise des clés de test dédiées, puis on nettoie à la fin.
+    ecrireJSON("__test_objet", { a: 1, b: [2, 3] });
+    verifier("relit un objet écrit", lireJSON("__test_objet", null), { a: 1, b: [2, 3] });
+
+    ecrireJSON("__test_tableau", [1, 2, 3]);
+    verifier("relit un tableau écrit", lireJSON("__test_tableau", null), [1, 2, 3]);
+
+    verifier("renvoie la valeur par défaut si la clé est absente",
+      lireJSON("__cle_qui_n_existe_pas", "defaut"), "defaut");
+
+    localStorage.setItem("__test_corrompu", "{ ceci n'est pas du JSON");
+    verifier("renvoie la valeur par défaut si le contenu est illisible",
+      lireJSON("__test_corrompu", "secours"), "secours");
+
+    // Nettoyage des clés de test
+    ["__test_objet", "__test_tableau", "__test_corrompu"].forEach(function(c) {
+      localStorage.removeItem(c);
+    });
+
+    // ====== Bilan ==========================================================
+    let resume = document.getElementById('resume');
+    let tousReussis = (reussis === total);
+    resume.className = tousReussis ? 'ok' : 'ko';
+    resume.textContent = (tousReussis ? '✓ Tous les tests passent — ' : '✗ Des tests échouent — ')
+      + reussis + ' / ' + total + ' réussis';
+  </script>
+</body>
+</html>

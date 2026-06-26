@@ -4,13 +4,24 @@ Ce fichier fournit des indications à Claude Code (claude.ai/code) pour travaill
 
 ## De quoi il s'agit
 
-« Mon deuxième cerveau » — une application web de prise de notes / carte mentale tenant dans un seul fichier, réalisée pendant un *stage de seconde*. C'est un projet pédagogique : HTML + CSS + JavaScript vivent tous dans un seul fichier, **abondamment commenté en français** pour un public débutant. Il n'y a aucune étape de build, aucun serveur, aucune dépendance, aucun gestionnaire de paquets, aucun test.
+« Mon deuxième cerveau » — une application web de prise de notes / carte mentale tenant dans un seul fichier, réalisée pendant un *stage de seconde*. C'est un projet pédagogique : HTML + CSS + JavaScript vivent tous dans un seul fichier, **abondamment commenté en français** pour un public débutant. Il n'y a aucune étape de build, aucun serveur, aucune dépendance, aucun gestionnaire de paquets. Les tests, eux, existent : ce sont des tests unitaires **sans dépendance**, exécutés directement dans le navigateur (voir « Tests »).
 
 ## Comment le lancer
 
 Ouvre `Mon deuxième cerveau.html` directement dans un navigateur (double-clic, ou `open "Mon deuxième cerveau.html"` sur macOS). C'est tout le déroulé — il n'y a rien à installer ni à compiler.
 
 `index.html` n'est qu'une page d'accueil GitHub Pages qui redirige immédiatement vers le fichier principal. L'application est déployée à l'adresse `https://martinleyssene.github.io/mes-notes/` (la constante `LIEN_PARTAGE`).
+
+## Tests
+
+**Règle : toute évolution du code doit s'accompagner de tests unitaires.** Pour chaque nouvelle fonction ou modification de comportement, ajoute ou mets à jour les tests correspondants dans `tests.html`, et vérifie qu'ils passent **tous** avant de committer. Une correction de bug commence idéalement par un test qui reproduit le bug (et qui passe une fois le bug corrigé).
+
+Comment ça marche, concrètement :
+
+- **`logique.js`** regroupe les fonctions de **logique pure** (sécurité + stockage) : `escapeHtml`, `couleurValidee`, `lireJSON`, `ecrireJSON`. Ce fichier est chargé **à la fois** par l'application (`Mon deuxième cerveau.html`, via `<script src="logique.js">` placé AVANT le script principal) **et** par `tests.html`. On teste donc le **vrai** code, pas une copie.
+- **`tests.html`** est la page de tests : un mini-vérificateur maison (fonction `verifier(nom, obtenu, attendu)`), **sans aucune dépendance**. Ouvre-la dans un navigateur (`open tests.html`) ; un bandeau vert indique que tout passe, un bandeau rouge liste les échecs.
+- **Pour rendre une fonction testable, isole-la dans `logique.js`** si elle est « pure » (ne dépend que de ses entrées/sorties, pas du DOM). C'est l'application directe de la section *Clean Architecture* : plus une fonction est isolée de l'affichage, plus elle est simple à tester.
+- Les gros gestionnaires de boutons qui manipulent le DOM restent dans le `<script>` en ligne. S'ils doivent être testés, extrais d'abord leur **cœur logique** (la partie qui transforme les données) dans une fonction pure de `logique.js`, puis teste cette fonction — sans chercher à simuler tout le DOM (on reste dans l'esprit KISS).
 
 ## Travailler dans ce code
 
