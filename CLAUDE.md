@@ -30,6 +30,24 @@ Ce projet vise un code **lisible par un débutant**. Trois principes guident cha
 
 En cas de tension entre ces principes, **privilégie la lisibilité pour un débutant** (KISS) — quitte à tolérer une légère répétition (DRY) plutôt qu'une abstraction obscure.
 
+## Principes de Clean Architecture
+
+L'idée centrale de la *clean architecture* (Robert C. Martin) est de **séparer la logique métier des détails techniques** (affichage, stockage, navigateur) pour que le cœur de l'application reste compréhensible et indépendant. **Ici, on en applique l'esprit, PAS la mise en couches lourde** : un projet en un seul fichier destiné à un débutant ne doit pas être noyé sous des dossiers, des classes et des interfaces abstraites. On garde donc ces principes, traduits à notre échelle :
+
+- **Séparer les responsabilités (separation of concerns).** Distingue clairement trois rôles, déjà présents dans le code :
+  1. **les données / l'état** (`mesNotes`, `positionsNotes`, `liens`, `onglets`…) ;
+  2. **la logique** qui les transforme (`ajouterNote`, `supprimerNotesParIndices`, `couleurValidee`…) ;
+  3. **l'affichage et les entrées/sorties** (le DOM via `afficherLesNotes`/`dessinerLiens`, le stockage via `sauvegarderNotesEnStockage`/`chargerNotesDepuisStockage`).
+  Une fonction qui modifie l'état ne devrait pas, en plus, fabriquer du HTML à la main : elle change les données puis appelle `afficherLesNotes()`.
+
+- **La règle de dépendance : les détails dépendent de la logique, jamais l'inverse.** Le « quoi » (ajouter une note, relier deux notes) ne doit pas être écrit en fonction du « comment c'est affiché ou stocké ». Concrètement : ne dissémine pas d'appels directs à `localStorage` ou de `document.getElementById(...)` au milieu de la logique métier — passe par les fonctions dédiées (`sauvegarderNotesEnStockage`, `afficherLesNotes`). Ainsi, si on change un jour la façon d'afficher ou de stocker, la logique ne bouge pas.
+
+- **Isoler les effets de bord (frontière entrée/sortie).** Tout ce qui touche au monde extérieur — `localStorage`, lecture de fichiers, insertion dans le DOM — est regroupé dans des fonctions identifiables, pas éparpillé. C'est aussi une frontière de **sécurité** : tout contenu venant de l'extérieur (fichier `.json` importé, notes partagées) passe par `escapeHtml()` / `couleurValidee()` avant d'entrer dans le DOM (voir « Note de sécurité »).
+
+- **Responsabilité unique (le « S » de SOLID).** Chaque fonction fait **une** chose et porte un nom qui le dit. Si une fonction « ajoute une note **et** redessine **et** sauvegarde **et** recentre », c'est qu'elle mélange les rôles : découpe-la et fais-la appeler les fonctions spécialisées.
+
+Règle d'arbitrage (cohérente avec ci-dessus) : applique ces principes **tant qu'ils rendent le code plus clair**. Si respecter une frontière demande une abstraction que l'élève ne comprendrait pas, **la lisibilité (KISS) l'emporte** — documente alors le petit écart en commentaire.
+
 ## Architecture (les parties qui s'étendent sur tout le fichier)
 
 L'état vit dans des variables de niveau module et est répliqué dans `localStorage` à chaque modification. Concepts clés :
