@@ -52,6 +52,9 @@
     #descriptionPrincipale { display: block; width: fit-content; border-radius: 6px; padding: 2px 6px; cursor: text; outline: none; margin-top: 2px; }
     #descriptionPrincipale:hover { background: rgba(0, 0, 0, 0.05); }
     #descriptionPrincipale:focus { background: #fff; box-shadow: 0 0 0 2px #1e88e5; }
+    /* Texte d'invite affiché tant que la description est vide. Ce n'est PAS du
+       vrai texte (juste de l'habillage CSS) : il n'est ni enregistré ni exporté. */
+    #descriptionPrincipale:empty::before { content: "Cliquez ici pour ajouter une description"; color: #999; font-style: italic; }
 
     /* La zone pour écrire une nouvelle note */
     input, textarea {
@@ -552,7 +555,7 @@
   <div id="panneauSaisie">
 
   <h1 id="titrePrincipal" contenteditable="true" spellcheck="false" title="Clique pour modifier le titre">Mes notes</h1>
-  <p id="descriptionPrincipale" contenteditable="true" spellcheck="false" title="Clique pour modifier la description">Écris une idée par note. Garde-les courtes !</p>
+  <p id="descriptionPrincipale" contenteditable="true" spellcheck="false" title="Clique pour modifier la description"></p>
   <p id="compteurNotes">Notes : 0 <span id="indicateurSauvegarde" title="Tes notes sont enregistrées dans le navigateur"></span></p>
 
   <!-- Barre d'onglets : chaque onglet a son propre jeu de notes -->
@@ -1582,7 +1585,11 @@
       let d = localStorage.getItem(CLE_DESCRIPTION);
       if (d !== null) p.textContent = d;   // on autorise une description vide
       p.addEventListener('blur', function() {
-        localStorage.setItem(CLE_DESCRIPTION, p.textContent.trim());
+        let v = p.textContent.trim();
+        // Si l'utilisateur a tout effacé, on vide complètement l'élément pour que
+        // le texte d'invite (CSS :empty::before) réapparaisse bien.
+        if (v === '') p.innerHTML = '';
+        localStorage.setItem(CLE_DESCRIPTION, v);
       });
       p.addEventListener('keydown', function(e) {
         // Entrée valide la description (pas de retour à la ligne)
