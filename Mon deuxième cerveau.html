@@ -1533,6 +1533,7 @@
       if (id === ongletActifId) return;
       ongletActifId = id;          // les données de l'onglet quitté sont déjà sauvegardées au fil de l'eau
       appliquerClesOnglet();
+      fichierNotesEnregistre = null;   // chaque onglet a SON fichier : on rechargera celui de ce nouvel onglet
       sauvegarderOnglets();
       chargerEtAfficherOngletActif();
       afficherBarreOnglets();
@@ -1543,6 +1544,7 @@
       onglets.push({ id: id, nom: 'Notes ' + (onglets.length + 1), cle: '-onglet-' + id });
       ongletActifId = id;
       appliquerClesOnglet();
+      fichierNotesEnregistre = null;   // nouvel onglet = pas encore de fichier lié
       sauvegarderOnglets();
       chargerEtAfficherOngletActif();   // nouvel onglet = vide
       afficherBarreOnglets();
@@ -1581,6 +1583,7 @@
       onglets = onglets.filter(function(o) { return o.id !== id; });
       if (ongletActifId === id) ongletActifId = onglets[0].id;
       appliquerClesOnglet();
+      fichierNotesEnregistre = null;   // on bascule sur un autre onglet : on rechargera SON fichier
       sauvegarderOnglets();
       chargerEtAfficherOngletActif();
       afficherBarreOnglets();
@@ -2556,22 +2559,23 @@
       });
     }
 
-    // Range le "raccourci" du fichier dans IndexedDB.
+    // Range le "raccourci" du fichier dans IndexedDB, sous une clé PROPRE à
+    // l'onglet actif : ainsi chaque onglet enregistre dans son propre fichier.
     async function memoriserFichier(handle) {
       try {
         let base = await ouvrirBaseFichier();
         base.transaction(IDB_STORE, "readwrite")
-            .objectStore(IDB_STORE).put(handle, IDB_CLE);
+            .objectStore(IDB_STORE).put(handle, cleFichierOnglet(IDB_CLE, SUFFIXE_PARTAGE, SUFFIXE_ONGLET));
       } catch (e) { console.warn("Impossible de mémoriser le fichier :", e); }
     }
 
-    // Récupère le "raccourci" du fichier rangé la dernière fois (ou null).
+    // Récupère le "raccourci" du fichier de l'onglet actif (ou null).
     async function recupererFichierMemorise() {
       try {
         let base = await ouvrirBaseFichier();
         return await new Promise(function(resolve) {
           let req = base.transaction(IDB_STORE, "readonly")
-                        .objectStore(IDB_STORE).get(IDB_CLE);
+                        .objectStore(IDB_STORE).get(cleFichierOnglet(IDB_CLE, SUFFIXE_PARTAGE, SUFFIXE_ONGLET));
           req.onsuccess = function() { resolve(req.result || null); };
           req.onerror = function() { resolve(null); };
         });

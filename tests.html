@@ -137,6 +137,20 @@
     verifier("positions absentes → objet vide", expVide.positions, {});
     verifier("appel sans argument ne plante pas", construireExportNotes().format, "mon-deuxieme-cerveau");
 
+    // --- cleFichierOnglet : un fichier d'enregistrement par onglet ---
+    groupe('cleFichierOnglet()');
+    verifier("1er onglet (suffixes vides) = clé historique",
+      cleFichierOnglet("fichier-notes", "", ""), "fichier-notes");
+    verifier("onglet distinct → clé distincte",
+      cleFichierOnglet("fichier-notes", "", "-onglet-abc"), "fichier-notes-onglet-abc");
+    verifier("tient compte du suffixe de partage",
+      cleFichierOnglet("fichier-notes", "-partage", "-onglet-x"), "fichier-notes-partage-onglet-x");
+    verifier("paramètres manquants → traités comme vides",
+      cleFichierOnglet("fichier-notes"), "fichier-notes");
+    verifier("deux onglets ont des clés différentes",
+      cleFichierOnglet("fichier-notes", "", "-onglet-a") === cleFichierOnglet("fichier-notes", "", "-onglet-b"),
+      false);
+
     // ====== Bilan ==========================================================
     let resume = document.getElementById('resume');
     let tousReussis = (reussis === total);

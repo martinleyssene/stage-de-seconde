@@ -69,3 +69,11 @@ function construireExportNotes(donnees) {
     reduites: donnees.reduites || {}
   };
 }
+
+// --- FICHIER PAR ONGLET ----------------------------------------------------
+// Construit la clé (IndexedDB) du fichier d'enregistrement lié à un onglet.
+// Chaque onglet a ainsi SON PROPRE fichier. Le 1er onglet (suffixes vides)
+// garde la clé historique → rétrocompatible avec les fichiers déjà reliés.
+function cleFichierOnglet(base, suffixePartage, suffixeOnglet) {
+  return base + (suffixePartage || '') + (suffixeOnglet || '');
+}
