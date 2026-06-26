@@ -135,6 +135,13 @@
       z-index: 1000;  /* au-dessus de tout pendant le drag */
       cursor: grabbing;
     }
+    /* Quand on survole une note AGRANDIE, elle passe au premier plan : ainsi ses
+       boutons (modifier / supprimer / couleur), qui dépassent de ses bords, ne
+       sont jamais cachés par les notes voisines. Le !important est nécessaire
+       car certaines notes ont un z-index inline (mises au premier plan au clic). */
+    .note:not(.reduit):hover {
+      z-index: 10000 !important;
+    }
     .note-content { min-width: 0; }
     .note-actions {
       position: absolute;
